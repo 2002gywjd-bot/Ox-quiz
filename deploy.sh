@@ -37,10 +37,12 @@ echo "✔ main 브랜치 푸시 완료"
 
 # 3) GitHub Pages 활성화 (이미 켜져 있으면 무시)
 if ! gh api "repos/${REPO_FULL}/pages" >/dev/null 2>&1; then
-  gh api -X POST "repos/${REPO_FULL}/pages" \
-    -f "source[branch]=main" -f "source[path]=/" >/dev/null 2>&1 \
-    && echo "✔ GitHub Pages 활성화 요청" \
-    || echo "· Pages API 실패 — GitHub 웹(Settings → Pages → main / root)에서 켜야 할 수 있습니다."
+  if printf '{"source":{"branch":"main","path":"/"},"build_type":"legacy"}' \
+     | gh api -X POST "repos/${REPO_FULL}/pages" --input - >/dev/null 2>&1; then
+    echo "✔ GitHub Pages 활성화 요청"
+  else
+    echo "· Pages API 실패 — GitHub 웹(Settings → Pages → main / (root))에서 켜야 할 수 있습니다."
+  fi
 else
   echo "· GitHub Pages 이미 활성화됨"
 fi
