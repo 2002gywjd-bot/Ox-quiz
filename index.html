@@ -135,7 +135,14 @@
         <div class="center-hint" id="h-hint">학생들이 이곳으로 들어와요</div>
         <div class="avatar-layer" id="h-layer"></div>
       </div>
-      <div class="arena-status" id="h-status">방을 만드는 중…</div>
+      <div class="arena-foot">
+        <div class="tally" id="h-tally">
+          <span class="t-chip t-o">O <b id="h-o">0</b></span>
+          <span class="t-chip t-x">X <b id="h-x">0</b></span>
+          <span class="t-chip t-n">🤔 <b id="h-n">0</b></span>
+        </div>
+        <div class="arena-status" id="h-status">방을 만드는 중…</div>
+      </div>
     </section>
 
     <aside class="side">
@@ -147,7 +154,10 @@
       </div>
 
       <div class="card q-panel">
-        <div class="card-h"><h3>문제 출제</h3><span class="badge" id="h-qpos">1 / 5</span></div>
+        <div class="card-h">
+          <h3>문제 출제</h3>
+          <span class="h-right"><span class="ans-chip" id="h-qans">O</span><span class="badge" id="h-qpos">1 / 5</span></span>
+        </div>
         <p class="q-preview" id="h-qpreview">문제를 준비해 주세요</p>
         <div class="timer-row">
           <span class="lbl">제한시간</span>

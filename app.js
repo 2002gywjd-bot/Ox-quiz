@@ -506,6 +506,17 @@
 
   function renderHostBar() {
     $('#h-count').textContent = S.players.size;
+
+    let o = 0, x = 0, n = 0;
+    S.players.forEach(function (p) {
+      if (p.side === 'O') o++;
+      else if (p.side === 'X') x++;
+      else n++;
+    });
+    $('#h-o').textContent = o;
+    $('#h-x').textContent = x;
+    $('#h-n').textContent = n;
+
     const st = $('#h-status');
     st.textContent = statusText();
     st.classList.toggle('live', S.phase === 'q');
@@ -533,6 +544,14 @@
     }
     const pos = $('#h-qpos');
     if (pos) pos.textContent = (S.questions.length ? S.qi + 1 : 0) + ' / ' + S.questions.length;
+    const ans = $('#h-qans');
+    if (ans) {
+      ans.hidden = !q;
+      if (q) {
+        ans.textContent = q.answer;
+        ans.className = 'ans-chip ' + (q.answer === 'X' ? 'x' : 'o');
+      }
+    }
   }
 
   function renderQList() {
