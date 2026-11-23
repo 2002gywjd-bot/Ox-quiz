@@ -1,0 +1,1239 @@
+/* ══════════════════════════════════════════════════════════
+   우리반 실시간 OX 퀴즈  ·  app.js
+   선생님 브라우저가 방장(호스트)이 되고, 학생은 PeerJS(WebRTC)로
+   직접 연결됩니다. 서버·회원가입 없이 동작해요.
+   ══════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  /* ─────────── 도우미 ─────────── */
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const now = () => Date.now();
+  const perf = () => (window.performance && performance.now ? performance.now() : Date.now());
+
+  const AVATARS = ['🐰', '🐻', '🦊', '🐱', '🐶', '🐼', '🐸', '🦁', '🐧', '🐥', '🦄', '🐙'];
+  const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 헷갈리는 O·0·I·1 제외
+  const MAX_PLAYERS = 40;
+  const SIDE_O = 0.35;   // u < 0.35  → O
+  const SIDE_X = 0.65;   // u > 0.65  → X
+  const LS_QUESTIONS = 'oxquiz.questions.v1';
+  const LS_NICK = 'oxquiz.nick';
+  const LS_AVATAR = 'oxquiz.avatar';
+  const SS_ROOM = 'oxquiz.hostcode';
+
+  const DEFAULT_QUESTIONS = [
+    { text: '대한민국의 수도는 서울이다.', answer: 'O' },
+    { text: '펭귄은 하늘을 날 수 있다.', answer: 'X' },
+    { text: '바나나는 나무에서 열린다.', answer: 'X' },
+    { text: '거미는 곤충이다.', answer: 'X' },
+    { text: '세종대왕은 훈민정음을 만들었다.', answer: 'O' }
+  ];
+
+  const SCREENS = {
+    landing: 'screen-landing',
+    join: 'screen-join',
+    student: 'screen-student',
+    host: 'screen-host'
+  };
+
+  /* ─────────── 상태 ─────────── */
+  const S = {
+    role: null,               // 'host' | 'student'
+    code: '',
+    peer: null,
+    conns: new Map(),         // host: peerId → DataConnection
+    conn: null,               // student: 호스트와의 연결
+    players: new Map(),       // host: peerId→p / student: n→p
+    nseq: 1,
+    phase: 'lobby',           // lobby | q | r
+    qi: 0,
+    qAnswer: null,            // 정답(호스트만 알고 있음)
+    answer: null,             // 학생에게 공개된 정답
+    timer: { dur: 0, endAt: 0 },
+    timerSel: 0,
+    timerDur: 0,
+    rem: 0,
+    remAt: 0,
+    questions: [],
+    myN: null,
+    myName: '나',
+    myAvatar: '🙂',
+    me: { u: 0.5, v: 0.5 },
+    qText: '',
+    qNo: 0,
+    editIndex: null,
+    editAnswer: 'O',
+    lastScore: 0,
+    dirty: true,
+    lastSend: 0,
+    joined: false
+  };
+
+  /* ─────────── 화면 / 토스트 ─────────── */
+  function show(name) {
+    Object.keys(SCREENS).forEach(function (k) {
+      const el = document.getElementById(SCREENS[k]);
+      if (el) el.hidden = k !== name;
+    });
+    document.body.classList.toggle('locked', name === 'student' || name === 'host');
+  }
+
+  let toastTimer = null;
+  function toast(msg, ms) {
+    const t = $('#toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.hidden = false;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      t.classList.remove('show');
+      setTimeout(function () { t.hidden = true; }, 240);
+    }, ms || 2200);
+  }
+
+  function openModal(id) { const m = document.getElementById(id); if (m) m.hidden = false; }
+  function closeModal(id) { const m = document.getElementById(id); if (m) m.hidden = true; }
+
+  /* ─────────── 아레나(무대) 공용 렌더러 ─────────── */
+  function createArena(root) {
+    const layer = $('.avatar-layer', root);
+    const els = new Map();
+    let lastList = [];
+    let lastOpts = {};
+
+    function isVertical() {
+      const r = root.getBoundingClientRect();
+      return r.height >= r.width;
+    }
+
+    function update(list, opts) {
+      lastList = list || lastList;
+      lastOpts = opts || lastOpts;
+      const vert = isVertical();
+      root.classList.toggle('vertical', vert);
+      root.classList.toggle('horizontal', !vert);
+
+      const n = lastList.length;
+      const size = n >= 30 ? 27 : n >= 24 ? 31 : n >= 16 ? 35 : n >= 9 ? 42 : 50;
+      layer.style.setProperty('--av', size + 'px');
+
+      const seen = {};
+      lastList.forEach(function (p) {
+        seen[p.id] = 1;
+        let el = els.get(p.id);
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'avatar';
+          el.innerHTML = '<div class="face"></div><span class="nm"></span><span class="mk">✨</span>';
+          layer.appendChild(el);
+          els.set(p.id, el);
+        }
+        const face = $('.face', el);
+        const nm = $('.nm', el);
+        if (face.textContent !== p.avatar) face.textContent = p.avatar || '🙂';
+        if (nm.textContent !== p.name) nm.textContent = p.name || '';
+
+        el.classList.toggle('side-o', p.side === 'O');
+        el.classList.toggle('side-x', p.side === 'X');
+        el.classList.toggle('me', p.id === lastOpts.me);
+        el.classList.toggle('winner', !!p.winner);
+        el.classList.toggle('dim', !!(lastOpts.answer && p.side && p.side !== lastOpts.answer));
+
+        const up = clamp(p.u, 0, 1) * 100;
+        const vp = clamp(p.v, 0, 1) * 100;
+        el.style.left = (vert ? vp : up) + '%';
+        el.style.top = (vert ? up : vp) + '%';
+      });
+
+      els.forEach(function (el, id) {
+        if (!seen[id]) { if (el.parentNode) el.parentNode.removeChild(el); els.delete(id); }
+      });
+    }
+
+    function toUV(clientX, clientY) {
+      const r = root.getBoundingClientRect();
+      const px = (clientX - r.left) / Math.max(1, r.width);
+      const py = (clientY - r.top) / Math.max(1, r.height);
+      const vert = isVertical();
+      return {
+        u: clamp(vert ? py : px, 0.02, 0.98),
+        v: clamp(vert ? px : py, 0.05, 0.95)
+      };
+    }
+
+    return {
+      root: root,
+      update: update,
+      toUV: toUV,
+      isVertical: isVertical,
+      redraw: function () { update(lastList, lastOpts); }
+    };
+  }
+
+  const hostArena = createArena(document.getElementById('h-arena'));
+  const stuArena = createArena(document.getElementById('s-arena'));
+
+  /* ─────────── 문제 저장소 ─────────── */
+  function loadQuestions() {
+    try {
+      const raw = localStorage.getItem(LS_QUESTIONS);
+      if (!raw) return DEFAULT_QUESTIONS.map(function (q) { return { text: q.text, answer: q.answer }; });
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return DEFAULT_QUESTIONS.slice();
+      return arr
+        .filter(function (q) { return q && typeof q.text === 'string' && q.text.trim(); })
+        .map(function (q) {
+          return { text: String(q.text).slice(0, 140), answer: q.answer === 'X' ? 'X' : 'O' };
+        });
+    } catch (e) {
+      return DEFAULT_QUESTIONS.slice();
+    }
+  }
+  function saveQuestions() {
+    try { localStorage.setItem(LS_QUESTIONS, JSON.stringify(S.questions)); } catch (e) {}
+  }
+
+  /* ─────────── 공통 계산 ─────────── */
+  function sideOf(u) {
+    if (u === null || u === undefined) return null;
+    if (u < SIDE_O) return 'O';
+    if (u > SIDE_X) return 'X';
+    return null;
+  }
+  function genCode(len) {
+    let s = '';
+    for (let i = 0; i < (len || 4); i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    return s;
+  }
+  function sanitizeName(v) {
+    const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, 10);
+    return s || '학생';
+  }
+  function hostPeerId(code) { return 'oxq' + String(code).toLowerCase(); }
+
+  function joinUrl() {
+    return location.origin + location.pathname + '?room=' + S.code;
+  }
+
+  /* ═══════════════════════════════════════════
+     방장(선생님)
+     ═══════════════════════════════════════════ */
+  function startHost(forceCode) {
+    if (!window.Peer) {
+      toast('연결 프로그램을 불러오지 못했어요. 새로고침해 주세요.', 4000);
+      return;
+    }
+    let code = forceCode || '';
+    if (!code) {
+      try { code = sessionStorage.getItem(SS_ROOM) || ''; } catch (e) { code = ''; }
+    }
+    if (!code) code = genCode(4);
+    S.code = code;
+    S.role = 'host';
+
+    const peer = new Peer(hostPeerId(code), { debug: 1 });
+    S.peer = peer;
+    let opened = false;
+
+    peer.on('open', function () {
+      opened = true;
+      try { sessionStorage.setItem(SS_ROOM, code); } catch (e) {}
+      show('host');
+      $('#h-code').textContent = code;
+      $('#h-code2').textContent = code;
+      makeQR();
+      renderHost();
+      toast('방이 만들어졌어요! 코드 ' + code, 2600);
+    });
+
+    peer.on('error', function (err) {
+      console.warn('[peer]', err && err.type, err && err.message);
+      if (!opened && err && err.type === 'unavailable-id') {
+        // 이미 쓰이는 코드 → 새 코드로 재시도
+        try { peer.destroy(); } catch (e) {}
+        try { sessionStorage.removeItem(SS_ROOM); } catch (e) {}
+        setTimeout(function () { startHost(''); }, 120);
+        return;
+      }
+      if (err && (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error')) {
+        toast('연결 서버와 통신이 잠시 끊겼어요. 자동으로 다시 연결할게요.', 3500);
+      }
+    });
+
+    peer.on('disconnected', function () {
+      try { peer.reconnect(); } catch (e) {}
+    });
+
+    peer.on('connection', function (conn) {
+      conn.on('data', function (d) { handleHostData(conn, d); });
+      conn.on('close', function () { removePlayer(conn.peer); });
+      conn.on('error', function () { removePlayer(conn.peer); });
+    });
+  }
+
+  function removePlayer(peerId) {
+    if (!S.players.has(peerId)) return;
+    const p = S.players.get(peerId);
+    S.players.delete(peerId);
+    S.conns.delete(peerId);
+    toast(p.name + ' 님이 나갔어요');
+    broadcast(rosterMsg());
+    S.dirty = true;
+    renderHost();
+  }
+
+  function handleHostData(conn, d) {
+    if (!d || typeof d !== 'object') return;
+
+    if (d.t === 'join') {
+      if (S.players.has(conn.peer)) return;
+      if (S.players.size >= MAX_PLAYERS) {
+        try { conn.send({ t: 'err', msg: '방이 가득 찼어요 (최대 ' + MAX_PLAYERS + '명)' }); } catch (e) {}
+        setTimeout(function () { try { conn.close(); } catch (e) {} }, 600);
+        return;
+      }
+      const p = {
+        id: conn.peer,
+        n: S.nseq++,
+        name: sanitizeName(d.name),
+        avatar: AVATARS.indexOf(d.avatar) >= 0 ? d.avatar : AVATARS[0],
+        u: 0.5,
+        v: 0.5,
+        score: 0,
+        side: null
+      };
+      S.players.set(conn.peer, p);
+      S.conns.set(conn.peer, conn);
+      try {
+        conn.send({ t: 'you', n: p.n });
+        conn.send(rosterMsg());
+        conn.send(tickMsg());
+      } catch (e) {}
+      broadcast(rosterMsg());
+      S.dirty = true;
+      renderHost();
+      toast(p.name + ' 님 입장! 🎉', 1500);
+      return;
+    }
+
+    if (d.t === 'pos') {
+      const p = S.players.get(conn.peer);
+      if (!p || S.phase === 'r') return;
+      const u = Number(d.u);
+      const v = Number(d.v);
+      p.u = clamp(isFinite(u) ? u : p.u, 0.02, 0.98);
+      p.v = clamp(isFinite(v) ? v : p.v, 0.05, 0.95);
+      p.side = sideOf(p.u);
+      S.dirty = true;
+    }
+  }
+
+  function rosterMsg() {
+    const rows = [];
+    S.players.forEach(function (p) { rows.push([p.n, p.name, p.avatar]); });
+    return { t: 'roster', pl: rows };
+  }
+
+  function tickMsg() {
+    const rows = [];
+    S.players.forEach(function (p) {
+      rows.push([p.n, Math.round(p.u * 100) / 100, Math.round(p.v * 100) / 100, p.score, p.side === 'O' ? 1 : p.side === 'X' ? 2 : 0]);
+    });
+    const m = { t: 's', ph: S.phase, pl: rows };
+    if (S.phase === 'q' || S.phase === 'r') {
+      const q = S.questions[S.qi];
+      m.qi = S.qi;
+      m.qn = S.qi + 1;
+      m.qt = q ? q.text : '';
+      if (S.phase === 'r') m.ans = S.qAnswer;
+      if (S.phase === 'q') {
+        m.dur = S.timer.dur;
+        if (S.timer.endAt) m.rem = Math.max(0, S.timer.endAt - now());
+      }
+    }
+    return m;
+  }
+
+  function broadcast(msg) {
+    S.conns.forEach(function (c) {
+      if (c && c.open) { try { c.send(msg); } catch (e) {} }
+    });
+  }
+
+  /* ── 방장 동작 ── */
+  function resetPositions() {
+    const list = [];
+    S.players.forEach(function (p) { list.push(p); });
+    const n = Math.max(1, list.length);
+    const cols = Math.max(2, Math.ceil(Math.sqrt(n * 2.2)));
+    const rows = Math.max(1, Math.ceil(n / cols));
+    list.forEach(function (p, i) {
+      const c = i % cols;
+      const r = Math.floor(i / cols);
+      p.u = 0.40 + ((c + 0.5) / cols) * 0.20;
+      p.v = 0.12 + ((r + 0.5) / rows) * 0.76;
+      p.side = null;
+    });
+    S.dirty = true;
+  }
+
+  function askQuestion() {
+    if (!S.questions.length) { toast('문제를 먼저 추가해 주세요.'); return; }
+    if (S.phase !== 'lobby') { toast('이미 출제했어요. “다음 문제”를 눌러 주세요.'); return; }
+    const q = S.questions[S.qi];
+    if (!q) return;
+    S.phase = 'q';
+    S.qAnswer = q.answer === 'X' ? 'X' : 'O';
+    S.answer = null;
+    resetPositions();
+    const dur = Number(S.timerSel) || 0;
+    S.timer = { dur: dur, endAt: dur ? now() + dur * 1000 : 0 };
+    S.dirty = true;
+    S.lastSend = 0;
+    hideHostReveal();
+    renderHost();
+    broadcast(tickMsg());
+    S.lastSend = now();
+    toast('문제 ' + (S.qi + 1) + ' 출제!', 1600);
+  }
+
+  function revealAnswer() {
+    if (S.phase !== 'q') { toast('출제 중일 때만 정답을 공개할 수 있어요.'); return; }
+    S.phase = 'r';
+    S.answer = S.qAnswer;
+    S.timer = { dur: 0, endAt: 0 };
+    let win = 0;
+    S.players.forEach(function (p) {
+      if (p.side === S.qAnswer) { p.score += 10; win++; }
+    });
+    broadcast({ t: 'rev', ans: S.qAnswer, win: win });
+    broadcast(rosterMsg());
+    S.dirty = true;
+    S.lastSend = 0;
+    showHostReveal(win);
+    renderHost();
+    broadcast(tickMsg());
+    S.lastSend = now();
+  }
+
+  function nextQuestion() {
+    if (!S.questions.length) { toast('문제가 없어요.'); return; }
+    const last = S.questions.length - 1;
+    if (S.qi >= last) {
+      S.qi = 0;
+      toast('첫 문제로 돌아왔어요.');
+    } else {
+      S.qi += 1;
+    }
+    S.phase = 'lobby';
+    S.qAnswer = null;
+    S.answer = null;
+    S.timer = { dur: 0, endAt: 0 };
+    resetPositions();
+    hideHostReveal();
+    S.dirty = true;
+    S.lastSend = 0;
+    renderHost();
+    broadcast(tickMsg());
+    S.lastSend = now();
+  }
+
+  let hostRevealEl = null;
+  function showHostReveal(win) {
+    if (!hostRevealEl) {
+      hostRevealEl = document.createElement('div');
+      hostRevealEl.className = 'reveal-card';
+      hostRevealEl.style.top = '15%';
+      document.getElementById('h-arena').appendChild(hostRevealEl);
+    }
+    hostRevealEl.hidden = false;
+    hostRevealEl.innerHTML = '';
+    const b = document.createElement('div');
+    b.className = 'big-ans ' + (S.qAnswer === 'O' ? 'o' : 'x');
+    b.textContent = '정답은 ' + S.qAnswer + '!';
+    hostRevealEl.appendChild(b);
+    if (win) {
+      const s = document.createElement('div');
+      s.className = 'res win';
+      s.textContent = win + '명 정답 · +10점 🎉';
+      hostRevealEl.appendChild(s);
+    }
+    hostArena.redraw();
+  }
+  function hideHostReveal() {
+    if (hostRevealEl) hostRevealEl.hidden = true;
+  }
+
+  function hostArenaList() {
+    const out = [];
+    const ans = S.phase === 'r' ? S.qAnswer : null;
+    S.players.forEach(function (p) {
+      out.push({
+        id: p.id, name: p.name, avatar: p.avatar, u: p.u, v: p.v, side: p.side,
+        winner: !!(ans && p.side === ans)
+      });
+    });
+    return out;
+  }
+
+  function renderHostArena() {
+    hostArena.update(hostArenaList(), { me: null, phase: S.phase, answer: S.phase === 'r' ? S.qAnswer : null });
+    const hint = $('#h-hint');
+    if (hint) hint.classList.toggle('hide', S.players.size > 0);
+    $('#h-count').textContent = S.players.size;
+  }
+
+  function statusText() {
+    if (S.phase === 'q') {
+      if (S.timer.endAt) {
+        const left = Math.ceil(Math.max(0, S.timer.endAt - now()) / 1000);
+        return '⏱ ' + left + '초 · 학생들이 O / X로 이동 중';
+      }
+      return '✋ 정답을 기다리는 중 · “정답 공개”를 눌러 주세요';
+    }
+    if (S.phase === 'r') {
+      let win = 0;
+      S.players.forEach(function (p) { if (p.side === S.qAnswer) win++; });
+      return '🎉 정답은 ' + S.qAnswer + ' · ' + win + '명이 +10점!';
+    }
+    return S.players.size
+      ? '👋 ' + S.players.size + '명 접속 · “출제하기”를 눌러 주세요'
+      : '학생들이 이곳으로 들어와요';
+  }
+
+  function renderHostBar() {
+    $('#h-count').textContent = S.players.size;
+    const st = $('#h-status');
+    st.textContent = statusText();
+    st.classList.toggle('live', S.phase === 'q');
+    st.classList.toggle('reveal', S.phase === 'r');
+  }
+
+  function renderHost() {
+    $('#h-code').textContent = S.code || '----';
+    $('#h-code2').textContent = S.code || '----';
+    renderQPreview();
+    renderQList();
+    $('#btn-ask').disabled = !S.questions.length || S.phase !== 'lobby';
+    $('#btn-reveal').disabled = S.phase !== 'q';
+    renderHostArena();
+    renderHostBar();
+    if (S.phase !== 'r') hideHostReveal();
+  }
+
+  function renderQPreview() {
+    const q = S.questions[S.qi];
+    const pv = $('#h-qpreview');
+    if (pv) {
+      pv.textContent = q ? q.text : '문제를 추가해 주세요';
+      pv.style.color = q ? '' : '#94a3b8';
+    }
+    const pos = $('#h-qpos');
+    if (pos) pos.textContent = (S.questions.length ? S.qi + 1 : 0) + ' / ' + S.questions.length;
+  }
+
+  function renderQList() {
+    const ul = $('#h-qlist');
+    if (!ul) return;
+    ul.innerHTML = '';
+    S.questions.forEach(function (q, i) {
+      const li = document.createElement('li');
+      li.className = 'q-item' + (i === S.qi ? ' cur' : '');
+
+      const pick = document.createElement('button');
+      pick.type = 'button';
+      pick.className = 'q-pick';
+      pick.dataset.i = String(i);
+      const idx = document.createElement('span');
+      idx.className = 'idx';
+      idx.textContent = String(i + 1);
+      const tx = document.createElement('span');
+      tx.className = 'tx';
+      tx.textContent = q.text;
+      pick.appendChild(idx);
+      pick.appendChild(tx);
+
+      const chip = document.createElement('span');
+      chip.className = 'ans-chip ' + (q.answer === 'X' ? 'x' : 'o');
+      chip.textContent = q.answer;
+
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'q-edit';
+      edit.dataset.i = String(i);
+      edit.title = '수정';
+      edit.textContent = '✏️';
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'q-del';
+      del.dataset.i = String(i);
+      del.title = '삭제';
+      del.textContent = '🗑';
+
+      li.appendChild(pick);
+      li.appendChild(chip);
+      li.appendChild(edit);
+      li.appendChild(del);
+      ul.appendChild(li);
+    });
+  }
+
+  function makeQR() {
+    const box = $('#h-qr');
+    if (!box) return;
+    box.innerHTML = '';
+    const url = joinUrl();
+    const tiny = document.createElement('p');
+    tiny.className = 'tiny';
+    if (window.QRCode && window.QRCode.CorrectLevel) {
+      try {
+        new window.QRCode(box, {
+          text: url,
+          width: 168,
+          height: 168,
+          colorDark: '#1e1b4b',
+          colorLight: '#ffffff',
+          correctLevel: window.QRCode.CorrectLevel.M
+        });
+      } catch (e) {
+        tiny.textContent = 'QR을 만들지 못했어요. 링크를 복사해 주세요.';
+        box.appendChild(tiny);
+      }
+    } else {
+      tiny.textContent = 'QR을 불러오지 못했어요. 링크를 복사해 주세요.';
+      box.appendChild(tiny);
+    }
+    $('#h-url').textContent = url;
+  }
+
+  function copyLink() {
+    const url = joinUrl();
+    const done = function () { toast('참여 링크를 복사했어요! 🔗'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, function () { fallbackCopy(url); });
+    } else {
+      fallbackCopy(url);
+    }
+  }
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    toast(ok ? '참여 링크를 복사했어요! 🔗' : '링크: ' + text, ok ? 2200 : 6000);
+  }
+
+  function renderRank() {
+    const list = [];
+    S.players.forEach(function (p) { list.push(p); });
+    list.sort(function (a, b) { return b.score - a.score || a.name.localeCompare(b.name); });
+    const ol = $('#rank-list');
+    ol.innerHTML = '';
+    if (!list.length) {
+      const li = document.createElement('li');
+      li.textContent = '아직 참여한 학생이 없어요.';
+      ol.appendChild(li);
+      return;
+    }
+    list.forEach(function (p, i) {
+      const li = document.createElement('li');
+      const rk = document.createElement('span');
+      rk.className = 'rk';
+      rk.textContent = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : String(i + 1);
+      const av = document.createElement('span');
+      av.className = 'av';
+      av.textContent = p.avatar;
+      const nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = p.name;
+      const sc = document.createElement('span');
+      sc.className = 'sc';
+      sc.textContent = p.score + '점';
+      li.appendChild(rk); li.appendChild(av); li.appendChild(nm); li.appendChild(sc);
+      ol.appendChild(li);
+    });
+  }
+
+  /* ── 방장 루프(실시간 동기화) ── */
+  function hostLoop() {
+    if (S.role !== 'host') return;
+    const t = now();
+    if (S.phase === 'q' && S.timer.endAt) {
+      if (S.timer.endAt <= t) { revealAnswer(); return; }
+      S.dirty = true;
+    }
+    if (S.dirty || t - S.lastSend > 1300) {
+      renderHostArena();
+      renderHostBar();
+      broadcast(tickMsg());
+      S.lastSend = t;
+      S.dirty = false;
+    }
+  }
+
+  /* ═══════════════════════════════════════════
+     학생
+     ═══════════════════════════════════════════ */
+  function startStudent(code, name, avatar) {
+    if (!window.Peer) {
+      setJoinStatus('연결 프로그램을 불러오지 못했어요. 새로고침해 주세요.', true);
+      return;
+    }
+    S.role = 'student';
+    S.code = code;
+    S.myName = name;
+    S.myAvatar = avatar;
+    S.joined = false;
+    S.players = new Map();
+    S.myN = null;
+    S.me = { u: 0.5, v: 0.5 };
+    S.phase = 'lobby';
+    S.revealSig = '';
+
+    setJoinStatus('방을 찾는 중…', false, 'busy');
+    setJoinBusy(true);
+
+    const peer = new Peer({ debug: 1 });
+    S.peer = peer;
+
+    const fail = function (msg) {
+      if (S.joined) return;
+      clearTimeout(S.joinTimer);
+      setJoinBusy(false);
+      setJoinStatus(msg, true);
+      try { peer.destroy(); } catch (e) {}
+      if (S.peer === peer) S.peer = null;
+      S.conn = null;
+      S.role = null;
+    };
+
+    S.joinTimer = setTimeout(function () {
+      fail('응답이 없어요. 방 코드를 확인하고 다시 시도해 주세요.');
+    }, 15000);
+
+    peer.on('open', function () {
+      const conn = peer.connect(hostPeerId(code), { reliable: true });
+      S.conn = conn;
+
+      conn.on('open', function () {
+        try { conn.send({ t: 'join', name: name, avatar: avatar }); } catch (e) {}
+      });
+
+      conn.on('data', function (d) { handleStudentData(d, fail); });
+
+      conn.on('close', function () {
+        if (!S.joined) { fail('방에 연결하지 못했어요.'); return; }
+        if (S.role === 'student') studentLost();
+      });
+
+      conn.on('error', function () {
+        if (!S.joined) fail('방에 연결하지 못했어요. 코드를 확인해 주세요.');
+      });
+    });
+
+    peer.on('error', function (err) {
+      console.warn('[peer]', err && err.type, err && err.message);
+      if (err && err.type === 'peer-unavailable') {
+        fail('방을 찾을 수 없어요. 코드를 다시 확인해 주세요.');
+        return;
+      }
+      if (err && (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error')) {
+        fail('연결 서버에 문제가 있어요. 잠시 후 다시 시도해 주세요.');
+      }
+    });
+  }
+
+  function setJoinStatus(msg, isErr, cls) {
+    const el = $('#join-status');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.classList.toggle('err', !!isErr);
+    el.classList.toggle('busy', cls === 'busy');
+  }
+  function setJoinBusy(busy) {
+    const b = $('#btn-join-go');
+    if (!b) return;
+    b.disabled = busy;
+    b.textContent = busy ? '연결 중…' : '입장하기 🚀';
+  }
+
+  function handleStudentData(d, failFn) {
+    if (!d || typeof d !== 'object') return;
+
+    if (d.t === 'you') {
+      S.myN = d.n;
+      S.joined = true;
+      clearTimeout(S.joinTimer);
+      $('#s-me-name').textContent = S.myName;
+      $('#s-me-avatar').textContent = S.myAvatar;
+      setJoinStatus('');
+      setJoinBusy(false);
+      show('student');
+      history.replaceState(null, '', location.pathname + '?room=' + S.code);
+      S.lastScore = 0;
+      $('#s-score').textContent = '0';
+      renderStudent();
+      return;
+    }
+    if (d.t === 'roster') { applyRoster(d); renderStudent(); return; }
+    if (d.t === 's') { applyTick(d); renderStudent(); return; }
+    if (d.t === 'rev') {
+      S.phase = 'r';
+      S.answer = d.ans === 'X' ? 'X' : 'O';
+      renderStudent();
+      return;
+    }
+    if (d.t === 'err') {
+      if (failFn) failFn(d.msg || '입장할 수 없어요.');
+      else { toast(d.msg || '입장할 수 없어요.', 3500); }
+      return;
+    }
+    if (d.t === 'bye') {
+      toast('선생님이 방을 닫았어요.', 3000);
+      setTimeout(function () { leaveStudent(true); }, 1400);
+    }
+  }
+
+  function applyRoster(m) {
+    const rows = m.pl || [];
+    const ids = {};
+    rows.forEach(function (r) {
+      const n = r[0], name = r[1], av = r[2];
+      ids[n] = 1;
+      let p = S.players.get(n);
+      if (!p) {
+        p = { n: n, name: name, avatar: av, u: 0.5, v: 0.5, score: 0, side: null };
+        S.players.set(n, p);
+      } else {
+        p.name = name;
+        p.avatar = av;
+      }
+    });
+    Array.from(S.players.keys()).forEach(function (k) {
+      if (!ids[k]) S.players.delete(k);
+    });
+  }
+
+  function applyTick(m) {
+    S.phase = m.ph;
+    S.answer = m.ph === 'r' ? (m.ans === 'X' ? 'X' : 'O') : null;
+    if (m.qt !== undefined) { S.qText = m.qt; S.qNo = m.qn || 1; }
+    if (m.ph === 'q') {
+      S.timerDur = Number(m.dur) || 0;
+      if (typeof m.rem === 'number') { S.rem = m.rem; S.remAt = perf(); }
+    } else {
+      S.timerDur = 0;
+      S.rem = 0;
+    }
+
+    const next = new Map();
+    (m.pl || []).forEach(function (r) {
+      const n = r[0];
+      const old = S.players.get(n);
+      const p = old || { n: n, name: '학생', avatar: '🙂', u: 0.5, v: 0.5, score: 0, side: null };
+      p.u = r[1];
+      p.v = r[2];
+      p.score = r[3];
+      p.side = r[4] === 1 ? 'O' : r[4] === 2 ? 'X' : null;
+      next.set(n, p);
+    });
+    S.players = next;
+  }
+
+  function studentList() {
+    const out = [];
+    const ans = S.phase === 'r' ? S.answer : null;
+    S.players.forEach(function (p) {
+      const isMe = p.n === S.myN;
+      const u = isMe ? S.me.u : p.u;
+      const v = isMe ? S.me.v : p.v;
+      out.push({
+        id: 'p' + p.n,
+        name: p.name,
+        avatar: p.avatar,
+        u: u,
+        v: v,
+        side: sideOf(u),
+        winner: !!(ans && sideOf(u) === ans)
+      });
+    });
+    return out;
+  }
+
+  function renderStudentArena() {
+    stuArena.update(studentList(), { me: 'p' + S.myN, phase: S.phase, answer: S.phase === 'r' ? S.answer : null });
+  }
+
+  function renderStudent() {
+    // 상단 문제 바
+    if (S.phase === 'q' || S.phase === 'r') {
+      $('#s-qno').textContent = 'Q' + (S.qNo || 1);
+      $('#s-qtext').textContent = S.qText || '문제';
+    } else {
+      $('#s-qno').textContent = '대기 중';
+      $('#s-qtext').textContent = '선생님이 곧 시작해요!';
+    }
+
+    // 힌트
+    const hint = $('#s-hint');
+    if (S.phase === 'lobby') {
+      hint.textContent = '가운데에서 대기!';
+      hint.classList.remove('hide');
+    } else if (S.phase === 'q') {
+      hint.textContent = 'O / X 칸을 누르면 이동해요';
+      hint.classList.toggle('hide', S.players.size > 14);
+    } else {
+      hint.classList.add('hide');
+    }
+
+    // 점수
+    const me = S.players.get(S.myN);
+    const score = me ? me.score : 0;
+    const scoreEl = $('#s-score');
+    if (String(score) !== scoreEl.textContent) {
+      scoreEl.textContent = String(score);
+      if (score > S.lastScore) {
+        scoreEl.classList.remove('bump');
+        void scoreEl.offsetWidth;
+        scoreEl.classList.add('bump');
+      }
+      S.lastScore = score;
+    }
+    $('#s-count').textContent = S.players.size + '명';
+
+    // 정답 공개 카드 (바뀔 때만 다시 그림)
+    const card = $('#s-reveal');
+    if (S.phase === 'r' && S.answer) {
+      const mySide = sideOf(S.me.u);
+      const ok = mySide === S.answer;
+      const sig = S.answer + '|' + (mySide || '-');
+      if (S.revealSig !== sig) {
+        S.revealSig = sig;
+        card.hidden = false;
+        card.innerHTML = '';
+        const b = document.createElement('div');
+        b.className = 'big-ans ' + (S.answer === 'O' ? 'o' : 'x');
+        b.textContent = '정답은 ' + S.answer + '!';
+        const res = document.createElement('div');
+        res.className = 'res ' + (ok ? 'win' : 'lose');
+        res.textContent = ok ? '🎉 정답! +10점' : (mySide ? '😢 아쉬워요, 다음에!' : '🤔 다음엔 꼭 골라 보자!');
+        card.appendChild(b);
+        card.appendChild(res);
+      }
+    } else {
+      S.revealSig = '';
+      card.hidden = true;
+    }
+
+    renderStudentArena();
+  }
+
+  function updateStudentTimer() {
+    if (S.role !== 'student') return;
+    const el = $('#s-timer');
+    if (!el) return;
+    if (S.phase !== 'q' || !S.timerDur) {
+      if (!el.hidden) el.hidden = true;
+      return;
+    }
+    let rem = S.rem - (perf() - S.remAt);
+    if (rem < 0) rem = 0;
+    if (rem <= 0) { el.hidden = true; return; }
+    el.hidden = false;
+    $('#s-timer-num').textContent = String(Math.ceil(rem / 1000));
+    el.style.setProperty('--p', String(Math.max(0, Math.min(100, (rem / (S.timerDur * 1000)) * 100))));
+    el.classList.toggle('urgent', rem <= 5000);
+  }
+
+  let posTimer = null;
+  let posLastAt = 0;
+  function sendPosNow() {
+    posLastAt = now();
+    if (S.conn && S.conn.open) {
+      try { S.conn.send({ t: 'pos', u: Math.round(S.me.u * 1000) / 1000, v: Math.round(S.me.v * 1000) / 1000 }); } catch (e) {}
+    }
+  }
+  function queuePos() {
+    const t = now();
+    if (t - posLastAt > 55) { sendPosNow(); return; }
+    if (!posTimer) {
+      posTimer = setTimeout(function () { posTimer = null; sendPosNow(); }, 60);
+    }
+  }
+
+  function moveMe(u, v) {
+    if (S.role !== 'student') return;
+    S.me.u = clamp(u, 0.02, 0.98);
+    S.me.v = clamp(v, 0.05, 0.95);
+    renderStudentArena();
+    queuePos();
+  }
+
+  function studentLost() {
+    toast('선생님과의 연결이 끊겼어요. 다시 입장해 주세요.', 4000);
+    leaveStudent(false);
+  }
+
+  function leaveStudent(hard) {
+    clearTimeout(S.joinTimer);
+    S.joined = false;
+    try { if (S.conn) S.conn.close(); } catch (e) {}
+    try { if (S.peer) S.peer.destroy(); } catch (e) {}
+    S.peer = null;
+    S.conn = null;
+    S.role = null;
+    S.players = new Map();
+    S.myN = null;
+    S.phase = 'lobby';
+    setJoinBusy(false);
+    setJoinStatus(hard ? '' : '', false);
+    show('join');
+    const codeEl = $('#join-code');
+    if (codeEl) codeEl.value = S.code || codeEl.value;
+  }
+
+  /* ═══════════════════════════════════════════
+     문제 편집 / 이벤트
+     ═══════════════════════════════════════════ */
+  function setEditAnswer(ans) {
+    S.editAnswer = ans === 'X' ? 'X' : 'O';
+    $$('#qf-answer button').forEach(function (b) {
+      const on = b.dataset.ans === S.editAnswer;
+      b.classList.toggle('on', on);
+      b.classList.toggle('on-o', on && S.editAnswer === 'O');
+      b.classList.toggle('on-x', on && S.editAnswer === 'X');
+    });
+  }
+
+  function openQEdit(idx) {
+    S.editIndex = (typeof idx === 'number') ? idx : null;
+    const q = S.editIndex === null ? { text: '', answer: 'O' } : S.questions[S.editIndex];
+    $('#qedit-title').textContent = S.editIndex === null ? '문제 추가' : '문제 수정';
+    $('#qf-text').value = q ? q.text : '';
+    setEditAnswer(q ? q.answer : 'O');
+    openModal('modal-qedit');
+    setTimeout(function () { try { $('#qf-text').focus(); } catch (e) {} }, 60);
+  }
+
+  function buildAvatarGrid() {
+    const grid = $('#avatar-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    let saved = '';
+    try { saved = localStorage.getItem(LS_AVATAR) || ''; } catch (e) {}
+    if (AVATARS.indexOf(saved) < 0) saved = AVATARS[Math.floor(Math.random() * AVATARS.length)];
+    S.pickAvatar = saved;
+    AVATARS.forEach(function (a) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'avatar-opt' + (a === saved ? ' on' : '');
+      b.textContent = a;
+      b.dataset.av = a;
+      b.addEventListener('click', function () {
+        S.pickAvatar = a;
+        $$('#avatar-grid .avatar-opt').forEach(function (x) { x.classList.toggle('on', x.dataset.av === a); });
+        try { localStorage.setItem(LS_AVATAR, a); } catch (e) {}
+      });
+      grid.appendChild(b);
+    });
+    const nameEl = $('#join-name');
+    try {
+      const nk = localStorage.getItem(LS_NICK);
+      if (nk && nameEl) nameEl.value = nk;
+    } catch (e) {}
+  }
+
+  function bindEvents() {
+    /* 랜딩 */
+    $('#btn-role-host').addEventListener('click', function () { startHost(''); });
+    $('#btn-role-student').addEventListener('click', function () {
+      show('join');
+      setTimeout(function () { $('#join-name').focus(); }, 150);
+    });
+    $('#btn-join-back').addEventListener('click', function () {
+      show('landing');
+      history.replaceState(null, '', location.pathname);
+    });
+
+    /* 학생 입장 */
+    $('#join-code').addEventListener('input', function (e) {
+      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    });
+    $('#join-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const code = $('#join-code').value.trim().toUpperCase();
+      const name = sanitizeName($('#join-name').value);
+      if (code.length < 4) { setJoinStatus('방 코드를 정확히 입력해 주세요.', true); return; }
+      $('#join-name').value = name;
+      try { localStorage.setItem(LS_NICK, name); } catch (er) {}
+      startStudent(code, name, S.pickAvatar || AVATARS[0]);
+    });
+
+    /* 학생 무대 터치/클릭 */
+    stuArena.root.addEventListener('pointerdown', function (e) {
+      if (S.role !== 'student' || S.phase === 'r') return;
+      const uv = stuArena.toUV(e.clientX, e.clientY);
+      moveMe(uv.u, uv.v);
+    });
+
+    /* 키보드 */
+    document.addEventListener('keydown', function (e) {
+      if (S.role !== 'student' || S.phase === 'r') return;
+      const key = e.key;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(key) < 0) return;
+      e.preventDefault();
+      const v = stuArena.isVertical();
+      const step = 0.07;
+      let u = S.me.u;
+      let vv = S.me.v;
+      if (key === 'ArrowLeft') { if (v) vv -= step; else u -= step; }
+      if (key === 'ArrowRight') { if (v) vv += step; else u += step; }
+      if (key === 'ArrowUp') { if (v) u -= step; else vv -= step; }
+      if (key === 'ArrowDown') { if (v) u += step; else vv += step; }
+      moveMe(u, vv);
+    });
+
+    /* 방장 버튼 */
+    $('#btn-copy').addEventListener('click', copyLink);
+    $('#btn-copy2').addEventListener('click', copyLink);
+
+    $('#h-timer-seg').addEventListener('click', function (e) {
+      const b = e.target.closest('button');
+      if (!b) return;
+      S.timerSel = Number(b.dataset.sec) || 0;
+      $$('#h-timer-seg button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    });
+
+    $('#btn-ask').addEventListener('click', askQuestion);
+    $('#btn-reveal').addEventListener('click', revealAnswer);
+    $('#btn-next').addEventListener('click', nextQuestion);
+    $('#btn-reset').addEventListener('click', function () {
+      resetPositions();
+      broadcast(tickMsg());
+      S.lastSend = now();
+      S.dirty = false;
+      renderHost();
+      toast('모두 가운데로 모였어요.');
+    });
+    $('#btn-rank').addEventListener('click', function () { renderRank(); openModal('modal-rank'); });
+    $('#btn-add-q').addEventListener('click', function () { openQEdit(null); });
+
+    $('#h-qlist').addEventListener('click', function (e) {
+      const del = e.target.closest('.q-del');
+      const edit = e.target.closest('.q-edit');
+      const pick = e.target.closest('.q-pick');
+      if (del) {
+        const i = Number(del.dataset.i);
+        if (!window.confirm('이 문제를 삭제할까요?')) return;
+        S.questions.splice(i, 1);
+        if (S.qi >= S.questions.length) S.qi = Math.max(0, S.questions.length - 1);
+        saveQuestions();
+        renderHost();
+        return;
+      }
+      if (edit) { openQEdit(Number(edit.dataset.i)); return; }
+      if (pick) {
+        if (S.phase !== 'lobby') { toast('지금은 문제를 바꿀 수 없어요.'); return; }
+        S.qi = Number(pick.dataset.i);
+        renderHost();
+      }
+    });
+
+    $('#qedit-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const text = $('#qf-text').value.replace(/\s+/g, ' ').trim().slice(0, 140);
+      if (!text) { toast('문제 내용을 입력해 주세요.'); return; }
+      if (S.editIndex === null || S.editIndex === undefined) {
+        S.questions.push({ text: text, answer: S.editAnswer });
+        S.qi = S.questions.length - 1;
+      } else {
+        S.questions[S.editIndex] = { text: text, answer: S.editAnswer };
+      }
+      saveQuestions();
+      closeModal('modal-qedit');
+      renderHost();
+      toast('저장했어요 ✏️');
+    });
+
+    $('#qf-answer').addEventListener('click', function (e) {
+      const b = e.target.closest('button');
+      if (!b) return;
+      setEditAnswer(b.dataset.ans);
+    });
+
+    $$('[data-close]').forEach(function (b) {
+      b.addEventListener('click', function () { closeModal(b.dataset.close); });
+    });
+    $$('.modal').forEach(function (m) {
+      m.addEventListener('click', function (e) { if (e.target === m) m.hidden = true; });
+    });
+
+    $('#btn-leave').addEventListener('click', function () {
+      if (!window.confirm('방을 닫을까요? 학생들의 연결이 모두 끊어져요.')) return;
+      try { broadcast({ t: 'bye' }); } catch (e) {}
+      S.role = null;
+      try { sessionStorage.removeItem(SS_ROOM); } catch (e) {}
+      setTimeout(function () {
+        try { if (S.peer) S.peer.destroy(); } catch (e) {}
+        location.href = location.pathname;
+      }, 250);
+    });
+
+    /* 창 크기 변경 */
+    let resizeTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        hostArena.redraw();
+        stuArena.redraw();
+      }, 120);
+    });
+  }
+
+  /* ═══════════════════════════════════════════
+     시작
+     ═══════════════════════════════════════════ */
+  function init() {
+    S.questions = loadQuestions();
+    buildAvatarGrid();
+    bindEvents();
+
+    setInterval(hostLoop, 100);
+    setInterval(updateStudentTimer, 100);
+
+    const params = new URLSearchParams(location.search);
+    const room = (params.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    if (room) {
+      show('join');
+      $('#join-code').value = room;
+      setTimeout(function () { try { $('#join-name').focus(); } catch (e) {} }, 220);
+    } else {
+      show('landing');
+    }
+  }
+
+  window.addEventListener('error', function (e) {
+    const f = document.getElementById('fatal');
+    if (!f) return;
+    f.hidden = false;
+    f.textContent = '오류가 발생했어요: ' + (e.message || '알 수 없는 오류');
+    setTimeout(function () { f.hidden = true; }, 8000);
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();

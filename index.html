@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>우리반 실시간 OX 퀴즈</title>
+<meta name="description" content="선생님은 방을 열고, 학생은 링크로 바로 참여하는 실시간 OX 퀴즈. 설치·회원가입 없이 우리 반 모두 함께!">
+<meta name="theme-color" content="#4f46e5">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%2322d3ee'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="bg-deco" aria-hidden="true">
+  <span style="--x:6%;  --y:12%; --d:0s;   --s:1.05">⭕</span>
+  <span style="--x:88%; --y:8%;  --d:1.2s; --s:.9">❌</span>
+  <span style="--x:14%; --y:78%; --d:2.1s; --s:.8">✨</span>
+  <span style="--x:78%; --y:72%; --d:.6s;  --s:1.1">🎈</span>
+  <span style="--x:48%; --y:6%;  --d:1.7s; --s:.75">⭐</span>
+  <span style="--x:92%; --y:46%; --d:2.6s; --s:.7">💡</span>
+  <span style="--x:3%;  --y:48%;  --d:1.1s; --s:.85">📚</span>
+</div>
+
+<!-- ══════════ 랜딩 ══════════ -->
+<section class="screen screen-landing" id="screen-landing">
+  <div class="landing-inner">
+    <div class="logo-row">
+      <span class="logo-o">O</span><span class="logo-x">X</span>
+    </div>
+    <h1>우리반 <span class="grad">실시간 OX 퀴즈</span></h1>
+    <p class="tagline">선생님이 방을 열면, 학생은 링크·QR로 바로 입장!<br>설치도 회원가입도 필요 없어요.</p>
+
+    <div class="role-cards">
+      <button class="role-card role-teacher" id="btn-role-host" type="button">
+        <span class="rc-emoji">👩‍🏫</span>
+        <span class="rc-title">선생님</span>
+        <span class="rc-sub">방 만들기</span>
+      </button>
+      <button class="role-card role-student" id="btn-role-student" type="button">
+        <span class="rc-emoji">🙋</span>
+        <span class="rc-title">학생</span>
+        <span class="rc-sub">참여하기</span>
+      </button>
+    </div>
+    <p class="tiny">최대 40명 동시 참여 · 실시간 P2P 연결 · 무료</p>
+  </div>
+</section>
+
+<!-- ══════════ 학생 입장 ══════════ -->
+<section class="screen screen-join" id="screen-join" hidden>
+  <form class="join-card" id="join-form" autocomplete="off">
+    <button class="back-btn" id="btn-join-back" type="button">← 처음으로</button>
+    <h2>방에 들어가기</h2>
+    <p class="join-sub">선생님이 알려준 코드를 입력해요.</p>
+
+    <label class="field">
+      <span>방 코드</span>
+      <input id="join-code" class="code-input" type="text" inputmode="latin" maxlength="6"
+             placeholder="ABCD" autocapitalize="characters" spellcheck="false" autocomplete="off">
+    </label>
+
+    <label class="field">
+      <span>내 이름</span>
+      <input id="join-name" type="text" maxlength="10" placeholder="예: 민준" autocomplete="off">
+    </label>
+
+    <div class="field">
+      <span>캐릭터 고르기</span>
+      <div class="avatar-grid" id="avatar-grid"></div>
+    </div>
+
+    <button class="btn btn-primary btn-xl" id="btn-join-go" type="submit">입장하기 🚀</button>
+    <p class="join-status" id="join-status" role="status"></p>
+  </form>
+</section>
+
+<!-- ══════════ 학생 플레이 ══════════ -->
+<section class="screen screen-play" id="screen-student" hidden>
+  <header class="play-top">
+    <div class="q-bar">
+      <span class="q-no" id="s-qno">대기 중</span>
+      <p class="q-text" id="s-qtext">선생님이 곧 시작해요!</p>
+    </div>
+    <div class="timer" id="s-timer" hidden>
+      <span id="s-timer-num">10</span>
+    </div>
+  </header>
+
+  <div class="arena-wrap">
+    <div class="arena" id="s-arena">
+      <div class="zone-tag tag-o">O</div>
+      <div class="zone-tag tag-x">X</div>
+      <div class="big big-o">O</div>
+      <div class="big big-x">X</div>
+      <div class="center-hint" id="s-hint">가운데에서 대기!</div>
+      <div class="avatar-layer" id="s-layer"></div>
+      <div class="reveal-card" id="s-reveal" hidden></div>
+    </div>
+  </div>
+
+  <footer class="play-bottom">
+    <div class="me-chip">
+      <span class="me-avatar" id="s-me-avatar">🙂</span>
+      <span class="me-name" id="s-me-name">나</span>
+    </div>
+    <div class="my-score">
+      <span class="lbl">내 점수</span>
+      <b id="s-score">0</b>
+    </div>
+    <div class="stage-count"><i class="dot"></i><span id="s-count">0명</span></div>
+  </footer>
+</section>
+
+<!-- ══════════ 선생님 ══════════ -->
+<section class="screen screen-host" id="screen-host" hidden>
+  <header class="host-top">
+    <div class="brand"><span class="b-o">O</span><span class="b-x">X</span> 우리반 OX 퀴즈</div>
+    <div class="room-box">
+      <span class="rl">방 코드</span><b id="h-code">----</b>
+    </div>
+    <div class="conn-box"><i class="dot"></i><b id="h-count">0</b>명 접속</div>
+    <div class="top-actions">
+      <button class="btn btn-ghost" id="btn-copy" type="button">🔗 링크 복사</button>
+      <button class="btn btn-ghost" id="btn-leave" type="button">방 닫기</button>
+    </div>
+  </header>
+
+  <main class="host-main">
+    <section class="arena-panel">
+      <div class="arena" id="h-arena">
+        <div class="zone-tag tag-o">O</div>
+        <div class="zone-tag tag-x">X</div>
+        <div class="big big-o">O</div>
+        <div class="big big-x">X</div>
+        <div class="center-hint" id="h-hint">학생들이 이곳으로 들어와요</div>
+        <div class="avatar-layer" id="h-layer"></div>
+      </div>
+      <div class="arena-status" id="h-status">방을 만드는 중…</div>
+    </section>
+
+    <aside class="side">
+      <div class="card join-mini">
+        <div class="card-h"><h3>학생 참여</h3><span class="badge" id="h-code2">----</span></div>
+        <div class="qr" id="h-qr"></div>
+        <button class="btn btn-soft btn-block" id="btn-copy2" type="button">🔗 참여 링크 복사</button>
+        <p class="url" id="h-url"></p>
+      </div>
+
+      <div class="card q-panel">
+        <div class="card-h"><h3>문제 출제</h3><span class="badge" id="h-qpos">1 / 5</span></div>
+        <p class="q-preview" id="h-qpreview">문제를 준비해 주세요</p>
+        <div class="timer-row">
+          <span class="lbl">제한시간</span>
+          <div class="seg" id="h-timer-seg">
+            <button data-sec="0" class="on" type="button">없음</button>
+            <button data-sec="10" type="button">10초</button>
+            <button data-sec="15" type="button">15초</button>
+            <button data-sec="30" type="button">30초</button>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-ask" type="button">출제하기</button>
+          <button class="btn btn-answer" id="btn-reveal" type="button">정답 공개</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-soft" id="btn-next" type="button">다음 문제 ▸</button>
+          <button class="btn btn-soft" id="btn-reset" type="button">위치 초기화</button>
+          <button class="btn btn-soft" id="btn-rank" type="button">🏆 순위표</button>
+        </div>
+      </div>
+
+      <div class="card q-list-card">
+        <div class="card-h"><h3>문제 목록</h3><button class="btn btn-mini" id="btn-add-q" type="button">＋ 추가</button></div>
+        <ul class="q-list" id="h-qlist"></ul>
+      </div>
+    </aside>
+  </main>
+</section>
+
+<!-- ══════════ 순위표 ══════════ -->
+<div class="modal" id="modal-rank" hidden>
+  <div class="modal-box">
+    <div class="card-h"><h3>🏆 순위표</h3><button class="icon-btn" data-close="modal-rank" type="button">✕</button></div>
+    <ol class="rank-list" id="rank-list"></ol>
+    <button class="btn btn-soft btn-block" data-close="modal-rank" type="button">닫기</button>
+  </div>
+</div>
+
+<!-- ══════════ 문제 편집 ══════════ -->
+<div class="modal" id="modal-qedit" hidden>
+  <form class="modal-box" id="qedit-form">
+    <div class="card-h"><h3 id="qedit-title">문제 추가</h3><button class="icon-btn" data-close="modal-qedit" type="button">✕</button></div>
+    <label class="field">
+      <span>문제 내용</span>
+      <textarea id="qf-text" rows="3" maxlength="140" placeholder="예: 펭귄은 하늘을 날 수 있다."></textarea>
+    </label>
+    <div class="field">
+      <span>정답</span>
+      <div class="seg seg-answer" id="qf-answer">
+        <button data-ans="O" class="on-o" type="button">O</button>
+        <button data-ans="X" type="button">X</button>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" type="submit">저장</button>
+      <button class="btn btn-soft" type="button" data-close="modal-qedit">취소</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<div class="fatal" id="fatal" hidden></div>
+
+<script>
+  // CDN 스크립트를 순서대로 시도하고, 모두 실패하면 앱은 안내 문구와 함께 뜬다.
+  window.__loadScript = function (urls) {
+    return new Promise(function (resolve, reject) {
+      var i = 0;
+      (function next() {
+        if (i >= urls.length) { reject(new Error('load failed')); return; }
+        var s = document.createElement('script');
+        s.src = urls[i++];
+        s.async = false;
+        s.onload = function () { resolve(); };
+        s.onerror = function () { next(); };
+        document.head.appendChild(s);
+      })();
+    });
+  };
+</script>
+<script>
+  (function () {
+    var load = window.__loadScript;
+    load([
+      'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js',
+      'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'
+    ]).catch(function () { window.__peerLoadFailed = true; })
+      .then(function () {
+        return load([
+          'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+          'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js'
+        ]).catch(function () { window.__qrLoadFailed = true; });
+      })
+      .then(function () { return load(['app.js']); })
+      .catch(function () {
+        var f = document.getElementById('fatal');
+        if (f) { f.hidden = false; f.textContent = '앱 파일을 불러오지 못했어요. 새로고침해 주세요.'; }
+      });
+  })();
+</script>
+</body>
+</html>
