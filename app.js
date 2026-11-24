@@ -13,19 +13,17 @@
   const now = () => Date.now();
   const perf = () => (window.performance && performance.now ? performance.now() : Date.now());
 
-  /* ═══════════════════════════════════════════
-     사람 캐릭터 (표정 · 머리카락 · 체형 · 스타일 각 5종)
-     ═══════════════════════════════════════════ */
 /* ══════════════════════════════════════════════════════════
    사람 캐릭터 — 표정 · 머리카락 · 체형 · 스타일 (항목별 5종)
+   성별을 고정하지 않는 중성적인 톤으로 그린다.
    같은 조합이면 언제나 같은 SVG가 나오므로, 선생님 화면·학생 화면·
    순위표에서 똑같은 얼굴이 그려진다.
    ══════════════════════════════════════════════════════════ */
 const AV_PART = {
   expr: ['smile', 'wink', 'focus', 'wow', 'tongue'],
-  hair: ['short', 'bob', 'long', 'pony', 'curly'],
+  hair: ['short', 'wolf', 'bob', 'bun', 'wave'],
   body: ['petite', 'slim', 'normal', 'sturdy', 'round'],
-  style: ['hoodie', 'uniform', 'overalls', 'sporty', 'knit']
+  style: ['hoodie', 'shirtvest', 'overalls', 'sporty', 'knit']
 };
 
 const AV_TABS = [
@@ -37,9 +35,9 @@ const AV_TABS = [
 
 const AV_LABEL = {
   smile: '미소', wink: '윙크', focus: '진지', wow: '놀람', tongue: '메롱',
-  short: '숏컷', bob: '단발', long: '긴머리', pony: '포니테일', curly: '곱슬',
+  short: '숏컷', wolf: '울프컷', bob: '단발', bun: '묶은머리', wave: '웨이브',
   petite: '아담', slim: '슬림', normal: '보통', sturdy: '듬직', round: '통통',
-  hoodie: '후드', uniform: '교복', overalls: '멜빵', sporty: '스포티', knit: '니트'
+  hoodie: '후드', shirtvest: '셔츠베스트', overalls: '멜빵', sporty: '스포티', knit: '니트'
 };
 
 const AV_DEFAULT = { expr: 'smile', hair: 'short', body: 'normal', style: 'hoodie' };
@@ -53,17 +51,18 @@ const AV_BODY = {
   round: { r: 21.5, hy: 46, nw: 11.5, sw: 27, sy: 78, shape: 'belly' }
 };
 
+/* 머리카락 색 — 자연스러운 블랙·다크브라운·애쉬 계열 */
 const AV_HAIR_COLOR = {
-  short: '#3a2f42',
-  bob: '#5b3a2b',
-  long: '#2f2b48',
-  pony: '#6b3d2a',
-  curly: '#3d2c1e'
+  short: '#2f2b33',
+  wolf: '#4a3b2f',
+  bob: '#3a332c',
+  bun: '#332f39',
+  wave: '#57483a'
 };
 
 const AV_STYLE = {
   hoodie: { main: '#5ec8f0', dark: '#2395c4', light: '#cdeefb', accent: '#ffffff' },
-  uniform: { main: '#39445f', dark: '#232c42', light: '#f7f9ff', accent: '#e8425f' },
+  shirtvest: { main: '#6a7ba0', dark: '#3b4763', light: '#fbfcff', accent: '#d7e0f2' },
   overalls: { main: '#8ab6ef', dark: '#3f6fc0', light: '#e3f0ff', accent: '#ffd45c' },
   sporty: { main: '#4ecb8d', dark: '#2a9d68', light: '#e2fbee', accent: '#ffffff' },
   knit: { main: '#c9b6f5', dark: '#7c5fd3', light: '#f4eeff', accent: '#ffd98a' }
@@ -79,6 +78,14 @@ function avn(v) { return Math.round(v * 10) / 10; }
 
 function avPick(list, v, fallback) {
   return list.indexOf(v) >= 0 ? v : fallback;
+}
+
+/* 색을 어둡게(k<1) 만든다 — 머리 결·옷 주름에 쓴다 */
+function avShade(hex, k) {
+  const n = parseInt(String(hex).slice(1), 16);
+  const f = function (v) { return Math.max(0, Math.min(255, Math.round(v * k))); };
+  const r = f((n >> 16) & 255), g = f((n >> 8) & 255), b = f(n & 255);
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
 /* 어떤 값이 와도 {expr,hair,body,style} 로 안전하게 바꾼다.
@@ -160,6 +167,7 @@ function avTorsoShape(b) {
 function avTorso(a, b, st) {
   const cx = 50, sy = b.sy, nw = b.nw;
   const d = avTorsoShape(b);
+  const ink = avShade(st.dark, 0.72);
   let s = '<path d="' + d + '" fill="' + st.main + '"/>';
 
   if (a.style === 'hoodie') {
@@ -172,19 +180,25 @@ function avTorso(a, b, st) {
     s += '<path d="M' + avn(cx + 4) + ' ' + avn(sy + 3) + ' L' + avn(cx + 4.5) + ' ' + avn(sy + 12) + '" stroke="' + st.light + '" stroke-width="1.8" stroke-linecap="round"/>';
     s += '<circle cx="' + avn(cx - 4.6) + '" cy="' + avn(sy + 14) + '" r="1.5" fill="' + st.light + '"/>';
     s += '<circle cx="' + avn(cx + 4.6) + '" cy="' + avn(sy + 13) + '" r="1.5" fill="' + st.light + '"/>';
-  } else if (a.style === 'uniform') {
-    // 흰 셔츠 V + 빨간 넥타이 + 깃
-    s += '<path d="M' + avn(cx - nw - 5) + ' ' + avn(sy - 7) +
-      ' L' + cx + ' ' + avn(sy + 15) +
-      ' L' + avn(cx + nw + 5) + ' ' + avn(sy - 7) +
-      ' Q' + cx + ' ' + avn(sy - 12) + ' ' + avn(cx - nw - 5) + ' ' + avn(sy - 7) + ' Z" fill="' + st.light + '"/>';
-    s += '<path d="M' + avn(cx - 3) + ' ' + avn(sy - 1) + ' L' + avn(cx + 3) + ' ' + avn(sy - 1) +
-      ' L' + avn(cx + 4) + ' ' + avn(sy + 14) + ' L' + cx + ' ' + avn(sy + 20) + ' L' + avn(cx - 4) + ' ' + avn(sy + 14) + ' Z" fill="' + st.accent + '"/>';
-    s += '<rect x="' + avn(cx - 3.4) + '" y="' + avn(sy - 5) + '" width="6.8" height="5.4" rx="1.8" fill="' + st.accent + '"/>';
-    s += '<path d="M' + avn(cx - nw - 5) + ' ' + avn(sy - 7) + ' L' + avn(cx - nw - 1) + ' ' + avn(sy + 4) +
-      ' L' + avn(cx - nw - 6) + ' ' + avn(sy + 9) + '" stroke="' + st.dark + '" stroke-width="3" fill="none" stroke-linejoin="round"/>';
-    s += '<path d="M' + avn(cx + nw + 5) + ' ' + avn(sy - 7) + ' L' + avn(cx + nw + 1) + ' ' + avn(sy + 4) +
-      ' L' + avn(cx + nw + 6) + ' ' + avn(sy + 9) + '" stroke="' + st.dark + '" stroke-width="3" fill="none" stroke-linejoin="round"/>';
+  } else if (a.style === 'shirtvest') {
+    // 셔츠 + 조끼: 흰 셔츠의 V와 깃, 넥타이 없이 단추
+    const vy = avn(sy + 24);
+    s += '<path d="M' + avn(cx - nw - 6) + ' ' + avn(sy - 8) + ' L' + cx + ' ' + vy +
+      ' L' + avn(cx + nw + 6) + ' ' + avn(sy - 8) +
+      ' Q' + cx + ' ' + avn(sy - 13) + ' ' + avn(cx - nw - 6) + ' ' + avn(sy - 8) + ' Z" fill="' + st.light + '"/>';
+    // 조끼 앞 여밈선
+    s += '<path d="M' + avn(cx - nw - 6.5) + ' ' + avn(sy - 8) + ' L' + cx + ' ' + avn(sy + 26) +
+      ' L' + avn(cx + nw + 6.5) + ' ' + avn(sy - 8) + '" stroke="' + ink + '" stroke-width="3.2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>';
+    // 셔츠 깃 (양쪽)
+    s += '<path d="M' + avn(cx - nw - 5) + ' ' + avn(sy - 9) + ' L' + avn(cx - 1.5) + ' ' + avn(sy + 3) +
+      ' L' + avn(cx - nw - 1) + ' ' + avn(sy + 5) + ' Z" fill="' + st.light + '" stroke="' + ink + '" stroke-width="1.1" stroke-linejoin="round"/>';
+    s += '<path d="M' + avn(cx + nw + 5) + ' ' + avn(sy - 9) + ' L' + avn(cx + 1.5) + ' ' + avn(sy + 3) +
+      ' L' + avn(cx + nw + 1) + ' ' + avn(sy + 5) + ' Z" fill="' + st.light + '" stroke="' + ink + '" stroke-width="1.1" stroke-linejoin="round"/>';
+    // 단추
+    s += '<circle cx="' + cx + '" cy="' + avn(sy + 9) + '" r="1.5" fill="' + st.accent + '"/>';
+    s += '<circle cx="' + cx + '" cy="' + avn(sy + 17) + '" r="1.5" fill="' + st.accent + '"/>';
+    // 조끼 밑단
+    s += '<path d="M' + avn(cx - b.sw * 0.5) + ' 100 L' + avn(cx + b.sw * 0.5) + ' 100" stroke="' + ink + '" stroke-width="2" opacity=".35" stroke-linecap="round"/>';
   } else if (a.style === 'overalls') {
     // 멜빵 바지 + 단추
     s += '<path d="M' + avn(cx - 11) + ' ' + avn(sy + 4) + ' L' + avn(cx - 11) + ' 104 L' + avn(cx + 11) + ' 104 L' + avn(cx + 11) + ' ' + avn(sy + 4) + ' Z" fill="' + st.dark + '"/>';
@@ -194,13 +208,13 @@ function avTorso(a, b, st) {
     s += '<circle cx="' + avn(cx + 10) + '" cy="' + avn(sy + 8) + '" r="1.7" fill="' + st.accent + '"/>';
     s += '<rect x="' + avn(cx - 6) + '" y="' + avn(sy + 15) + '" width="12" height="7" rx="2" fill="' + st.dark + '" opacity=".8"/>';
   } else if (a.style === 'sporty') {
-    // 트레이닝복: 지퍼 + 깃 + 흰 줄
+    // 맨투맨/저지: 지퍼 + 깃 + 흰 줄
     s += '<rect x="' + avn(cx - 1) + '" y="' + avn(sy - 4) + '" width="2" height="26" fill="' + st.accent + '" opacity=".9"/>';
     s += '<path d="M' + avn(cx - nw - 4) + ' ' + avn(sy - 7) + ' Q' + cx + ' ' + avn(sy + 6) + ' ' + avn(cx + nw + 4) + ' ' + avn(sy - 7) + '" stroke="' + st.accent + '" stroke-width="3.2" fill="none" stroke-linecap="round"/>';
     s += '<path d="M' + avn(cx - b.sw * 0.72) + ' ' + avn(sy + 7) + ' L' + avn(cx - b.sw * 0.86) + ' ' + avn(sy + 30) + '" stroke="' + st.accent + '" stroke-width="2.6" opacity=".85"/>';
     s += '<path d="M' + avn(cx + b.sw * 0.72) + ' ' + avn(sy + 7) + ' L' + avn(cx + b.sw * 0.86) + ' ' + avn(sy + 30) + '" stroke="' + st.accent + '" stroke-width="2.6" opacity=".85"/>';
   } else {
-    // 니트/자켓: 브이넥 + 뜨개 결
+    // 니트: 브이넥 + 뜨개 결
     s += '<path d="M' + avn(cx - nw - 4) + ' ' + avn(sy - 6) + ' L' + cx + ' ' + avn(sy + 13) + ' L' + avn(cx + nw + 4) + ' ' + avn(sy - 6) + '" fill="' + st.light + '"/>';
     s += '<path d="M' + avn(cx - nw - 4) + ' ' + avn(sy - 6) + ' L' + cx + ' ' + avn(sy + 13) + ' L' + avn(cx + nw + 4) + ' ' + avn(sy - 6) + '" stroke="' + st.dark + '" stroke-width="2.4" fill="none" stroke-linejoin="round"/>';
     s += '<path d="M' + avn(cx - 14) + ' ' + avn(sy + 18) + ' q7 4 14 0 q7 -4 14 0" stroke="' + st.dark + '" stroke-width="1.6" fill="none" opacity=".55"/>';
@@ -209,91 +223,174 @@ function avTorso(a, b, st) {
   return s;
 }
 
-/* ─────────── 머리카락 ─────────── */
-function avHairCap(a, cx, hy, r, col) {
-  return '<ellipse cx="' + cx + '" cy="' + avn(hy - r * 0.14) + '" rx="' + avn(r + 1.7) + '" ry="' + avn(r * 0.99) + '" fill="' + col + '"/>';
+/* ─────────── 머리카락 ───────────
+   다섯 가지 모두 성별을 고정하지 않는 실루엣.
+   공통으로 정수리를 감싸는 '헤어 셸'을 얼굴 위에 얹고,
+   스타일마다 앞머리 · 옆머리 · 뒤머리를 덧붙인다.
+   side: 옆머리가 귀 아래로 내려오는 정도(r 배수)
+   line: 이마 헤어라인 높이(r 배수, 클수록 이마가 넓다)
+   w:    머리 폭 여유(px) */
+function avHairShell(cx, hy, r, col, side, line, w) {
+  const L = avn(cx - r - w), R = avn(cx + r + w);
+  const sIn = avn(hy + r * side);
+  const sTop = avn(hy + r * side * 0.5);
+  return '<path d="M' + L + ' ' + sIn +
+    ' C' + avn(cx - r - w * 1.25) + ' ' + avn(hy - r * 0.55) + ' ' + avn(cx - r * 0.95) + ' ' + avn(hy - r * 1.34) + ' ' + avn(cx) + ' ' + avn(hy - r * 1.36) +
+    ' C' + avn(cx + r * 0.95) + ' ' + avn(hy - r * 1.34) + ' ' + avn(cx + r + w * 1.25) + ' ' + avn(hy - r * 0.55) + ' ' + R + ' ' + sIn +
+    ' L' + avn(cx + r * 0.94) + ' ' + sTop +
+    ' C' + avn(cx + r * 0.94) + ' ' + avn(hy + r * 0.02) + ' ' + avn(cx + r * 0.86) + ' ' + avn(hy - r * (line - 0.22)) + ' ' + avn(cx + r * 0.5) + ' ' + avn(hy - r * line) +
+    ' C' + avn(cx + r * 0.22) + ' ' + avn(hy - r * (line + 0.15)) + ' ' + avn(cx - r * 0.22) + ' ' + avn(hy - r * (line + 0.15)) + ' ' + avn(cx - r * 0.5) + ' ' + avn(hy - r * line) +
+    ' C' + avn(cx - r * 0.86) + ' ' + avn(hy - r * (line - 0.22)) + ' ' + avn(cx - r * 0.94) + ' ' + avn(hy + r * 0.02) + ' ' + avn(cx - r * 0.94) + ' ' + sTop +
+    ' Z" fill="' + col + '"/>';
 }
 
+/* 뒤통수 쪽 머리 (얼굴 뒤에 깔린다) */
 function avHairBack(a, cx, hy, r, col) {
-  if (a.hair === 'long') {
-    return '<path d="M' + avn(cx - r * 0.95) + ' ' + avn(hy - r * 0.25) +
-      ' C' + avn(cx - r - 4.5) + ' ' + avn(hy + r * 1.0) + ' ' + avn(cx - r - 3) + ' ' + avn(hy + r * 2.0) + ' ' + avn(cx - r - 0.5) + ' ' + avn(hy + r * 2.7) +
-      ' L' + avn(cx + r + 0.5) + ' ' + avn(hy + r * 2.7) +
-      ' C' + avn(cx + r + 3) + ' ' + avn(hy + r * 2.0) + ' ' + avn(cx + r + 4.5) + ' ' + avn(hy + r * 1.0) + ' ' + avn(cx + r * 0.95) + ' ' + avn(hy - r * 0.25) +
-      ' Z" fill="' + col + '"/>';
+  const sh = avShade(col, 0.78);
+
+  if (a.hair === 'wolf') {
+    // 목덜미에 닿는 레이어드 끝 — 뾰족한 결
+    return '<path d="M' + avn(cx - r - 1) + ' ' + avn(hy - r * 0.38) +
+      ' C' + avn(cx - r - 3.8) + ' ' + avn(hy + r * 0.4) + ' ' + avn(cx - r - 3.2) + ' ' + avn(hy + r * 0.78) + ' ' + avn(cx - r - 2.1) + ' ' + avn(hy + r * 0.92) +
+      ' L' + avn(cx - r * 1.0) + ' ' + avn(hy + r * 1.14) +
+      ' L' + avn(cx - r * 0.72) + ' ' + avn(hy + r * 0.9) +
+      ' L' + avn(cx - r * 0.36) + ' ' + avn(hy + r * 1.16) +
+      ' L' + avn(cx + r * 0.02) + ' ' + avn(hy + r * 0.92) +
+      ' L' + avn(cx + r * 0.4) + ' ' + avn(hy + r * 1.16) +
+      ' L' + avn(cx + r * 0.74) + ' ' + avn(hy + r * 0.9) +
+      ' L' + avn(cx + r * 1.0) + ' ' + avn(hy + r * 1.14) +
+      ' C' + avn(cx + r + 3.2) + ' ' + avn(hy + r * 0.78) + ' ' + avn(cx + r + 3.8) + ' ' + avn(hy + r * 0.4) + ' ' + avn(cx + r + 1) + ' ' + avn(hy - r * 0.38) + ' Z" fill="' + col + '"/>';
   }
-  if (a.hair === 'pony') {
-    return '<path d="M' + avn(cx + r * 0.3) + ' ' + avn(hy - r * 0.85) +
-      ' C' + avn(cx + r * 1.35) + ' ' + avn(hy - r * 1.15) + ' ' + avn(cx + r * 1.55) + ' ' + avn(hy + r * 0.35) + ' ' + avn(cx + r * 1.15) + ' ' + avn(hy + r * 1.75) +
-      ' C' + avn(cx + r * 1.0) + ' ' + avn(hy + r * 2.15) + ' ' + avn(cx + r * 0.7) + ' ' + avn(hy + r * 2.05) + ' ' + avn(cx + r * 0.7) + ' ' + avn(hy + r * 1.6) +
-      ' C' + avn(cx + r * 0.72) + ' ' + avn(hy + r * 0.75) + ' ' + avn(cx + r * 0.78) + ' ' + avn(hy - r * 0.1) + ' ' + avn(cx + r * 0.28) + ' ' + avn(hy - r * 0.6) +
-      ' Z" fill="' + col + '"/>' +
-      '<circle cx="' + avn(cx + r * 0.62) + '" cy="' + avn(hy - r * 0.85) + '" r="' + avn(r * 0.16) + '" fill="#f59e0b"/>';
+  if (a.hair === 'bob') {
+    // 단발의 뒤판 — 턱선 아래에서 살짝 말린 끝
+    return '<path d="M' + avn(cx - r - 1) + ' ' + avn(hy - r * 0.3) +
+      ' C' + avn(cx - r - 4.2) + ' ' + avn(hy + r * 0.5) + ' ' + avn(cx - r - 3.6) + ' ' + avn(hy + r * 0.92) + ' ' + avn(cx - r - 2.0) + ' ' + avn(hy + r * 1.0) +
+      ' Q' + cx + ' ' + avn(hy + r * 1.22) + ' ' + avn(cx + r + 2.0) + ' ' + avn(hy + r * 1.0) +
+      ' C' + avn(cx + r + 3.6) + ' ' + avn(hy + r * 0.92) + ' ' + avn(cx + r + 4.2) + ' ' + avn(hy + r * 0.5) + ' ' + avn(cx + r + 1) + ' ' + avn(hy - r * 0.3) + ' Z" fill="' + col + '"/>';
+  }
+  if (a.hair === 'bun') {
+    // 낮게 묶은 번 — 뒤통수 아래로 살짝 보인다
+    return '<circle cx="' + avn(cx - r * 0.86) + '" cy="' + avn(hy + r * 0.92) + '" r="' + avn(r * 0.44) + '" fill="' + col + '"/>' +
+      '<path d="M' + avn(cx - r * 1.12) + ' ' + avn(hy + r * 0.86) +
+      ' q' + avn(r * 0.3) + ' ' + avn(r * 0.26) + ' ' + avn(r * 0.52) + ' ' + avn(-r * 0.02) +
+      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.1) + '" fill="none" stroke-linecap="round" opacity=".8"/>';
+  }
+  if (a.hair === 'wave') {
+    // 어깨까지 내려오는 물결 — 끝은 안쪽으로 말린다
+    return '<path d="M' + avn(cx - r - 1) + ' ' + avn(hy - r * 0.35) +
+      ' C' + avn(cx - r - 5.4) + ' ' + avn(hy + r * 0.45) + ' ' + avn(cx - r - 5.8) + ' ' + avn(hy + r * 0.95) + ' ' + avn(cx - r - 4.4) + ' ' + avn(hy + r * 1.22) +
+      ' C' + avn(cx - r - 3.6) + ' ' + avn(hy + r * 1.4) + ' ' + avn(cx - r - 4.4) + ' ' + avn(hy + r * 1.5) + ' ' + avn(cx - r - 3.2) + ' ' + avn(hy + r * 1.54) +
+      ' C' + avn(cx - r - 2.2) + ' ' + avn(hy + r * 1.58) + ' ' + avn(cx - r - 1.6) + ' ' + avn(hy + r * 1.4) + ' ' + avn(cx - r * 0.6) + ' ' + avn(hy + r * 1.42) +
+      ' C' + avn(cx + r * 0.4) + ' ' + avn(hy + r * 1.46) + ' ' + avn(cx + r + 1.6) + ' ' + avn(hy + r * 1.56) + ' ' + avn(cx + r + 3.0) + ' ' + avn(hy + r * 1.5) +
+      ' C' + avn(cx + r + 4.4) + ' ' + avn(hy + r * 1.42) + ' ' + avn(cx + r + 3.8) + ' ' + avn(hy + r * 1.3) + ' ' + avn(cx + r + 4.6) + ' ' + avn(hy + r * 1.18) +
+      ' C' + avn(cx + r + 5.8) + ' ' + avn(hy + r * 0.95) + ' ' + avn(cx + r + 5.4) + ' ' + avn(hy + r * 0.45) + ' ' + avn(cx + r + 1) + ' ' + avn(hy - r * 0.35) + ' Z" fill="' + col + '"/>';
   }
   return '';
 }
 
+/* 얼굴 위에 얹는 앞머리 · 옆머리 */
 function avHairFront(a, cx, hy, r, col) {
-  const L = avn(cx - r - 1.5), R = avn(cx + r + 1.5);
+  const sh = avShade(col, 0.76);
+  const hi = avShade(col, 1.5);
   let s = '';
 
   if (a.hair === 'short') {
-    s += '<path d="M' + L + ' ' + avn(hy - r * 0.05) +
-      ' Q' + avn(cx - r * 0.85) + ' ' + avn(hy - r * 1.14) + ' ' + avn(cx - r * 0.05) + ' ' + avn(hy - r * 1.0) +
-      ' Q' + avn(cx + r * 0.9) + ' ' + avn(hy - r * 0.92) + ' ' + R + ' ' + avn(hy - r * 0.18) +
-      ' Q' + avn(cx + r * 0.5) + ' ' + avn(hy - r * 0.52) + ' ' + avn(cx - r * 0.12) + ' ' + avn(hy - r * 0.46) +
-      ' Q' + avn(cx - r * 0.72) + ' ' + avn(hy - r * 0.4) + ' ' + L + ' ' + avn(hy - r * 0.05) + ' Z" fill="' + col + '"/>';
-    // 옆머리
-    s += '<ellipse cx="' + avn(cx - r * 0.97) + '" cy="' + avn(hy + r * 0.05) + '" rx="' + avn(r * 0.26) + '" ry="' + avn(r * 0.4) + '" fill="' + col + '"/>';
-    s += '<ellipse cx="' + avn(cx + r * 0.97) + '" cy="' + avn(hy + r * 0.05) + '" rx="' + avn(r * 0.26) + '" ry="' + avn(r * 0.4) + '" fill="' + col + '"/>';
+    s += avHairShell(cx, hy, r, col, 0.34, 0.66, 1.5);
+    // 옆으로 넘긴 앞머리
+    s += '<path d="M' + avn(cx - r * 0.98) + ' ' + avn(hy - r * 0.12) +
+      ' C' + avn(cx - r * 0.92) + ' ' + avn(hy - r * 0.62) + ' ' + avn(cx - r * 0.3) + ' ' + avn(hy - r * 0.9) + ' ' + avn(cx + r * 0.3) + ' ' + avn(hy - r * 0.92) +
+      ' C' + avn(cx + r * 0.8) + ' ' + avn(hy - r * 0.9) + ' ' + avn(cx + r * 0.98) + ' ' + avn(hy - r * 0.55) + ' ' + avn(cx + r * 0.98) + ' ' + avn(hy - r * 0.14) +
+      ' L' + avn(cx + r * 0.74) + ' ' + avn(hy - r * 0.42) +
+      ' C' + avn(cx + r * 0.4) + ' ' + avn(hy - r * 0.58) + ' ' + avn(cx - r * 0.2) + ' ' + avn(hy - r * 0.56) + ' ' + avn(cx - r * 0.52) + ' ' + avn(hy - r * 0.34) +
+      ' Z" fill="' + col + '"/>';
+    // 귀 앞 짧은 옆머리
+    s += '<path d="M' + avn(cx - r * 0.99) + ' ' + avn(hy - r * 0.2) + ' L' + avn(cx - r * 0.94) + ' ' + avn(hy + r * 0.22) +
+      ' Q' + avn(cx - r * 0.86) + ' ' + avn(hy + r * 0.3) + ' ' + avn(cx - r * 0.82) + ' ' + avn(hy + r * 0.18) +
+      ' L' + avn(cx - r * 0.88) + ' ' + avn(hy - r * 0.22) + ' Z" fill="' + col + '"/>';
+    s += '<path d="M' + avn(cx + r * 0.99) + ' ' + avn(hy - r * 0.2) + ' L' + avn(cx + r * 0.94) + ' ' + avn(hy + r * 0.22) +
+      ' Q' + avn(cx + r * 0.86) + ' ' + avn(hy + r * 0.3) + ' ' + avn(cx + r * 0.82) + ' ' + avn(hy + r * 0.18) +
+      ' L' + avn(cx + r * 0.88) + ' ' + avn(hy - r * 0.22) + ' Z" fill="' + col + '"/>';
+    // 결
+    s += '<path d="M' + avn(cx - r * 0.34) + ' ' + avn(hy - r * 1.02) + ' C' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.86) + ' ' + avn(cx + r * 0.3) + ' ' + avn(hy - r * 0.86) + ' ' + avn(cx + r * 0.6) + ' ' + avn(hy - r * 0.66) +
+      '" stroke="' + hi + '" stroke-width="' + avn(r * 0.075) + '" fill="none" stroke-linecap="round" opacity=".28"/>';
+  } else if (a.hair === 'wolf') {
+    s += avHairShell(cx, hy, r, col, 0.5, 0.6, 1.8);
+    // 결이 살아 있는 레이어드 앞머리 — 부드럽게 흐르는 선
+    s += '<path d="M' + avn(cx - r * 0.97) + ' ' + avn(hy - r * 0.12) +
+      ' C' + avn(cx - r * 0.94) + ' ' + avn(hy - r * 0.66) + ' ' + avn(cx - r * 0.4) + ' ' + avn(hy - r * 0.98) + ' ' + avn(cx + r * 0.12) + ' ' + avn(hy - r * 0.96) +
+      ' C' + avn(cx + r * 0.72) + ' ' + avn(hy - r * 0.94) + ' ' + avn(cx + r * 0.98) + ' ' + avn(hy - r * 0.56) + ' ' + avn(cx + r * 0.97) + ' ' + avn(hy - r * 0.12) +
+      ' C' + avn(cx + r * 0.82) + ' ' + avn(hy - r * 0.34) + ' ' + avn(cx + r * 0.62) + ' ' + avn(hy - r * 0.46) + ' ' + avn(cx + r * 0.4) + ' ' + avn(hy - r * 0.46) +
+      ' C' + avn(cx + r * 0.16) + ' ' + avn(hy - r * 0.46) + ' ' + avn(cx - r * 0.04) + ' ' + avn(hy - r * 0.38) + ' ' + avn(cx - r * 0.26) + ' ' + avn(hy - r * 0.38) +
+      ' C' + avn(cx - r * 0.52) + ' ' + avn(hy - r * 0.38) + ' ' + avn(cx - r * 0.74) + ' ' + avn(hy - r * 0.46) + ' ' + avn(cx - r * 0.94) + ' ' + avn(hy - r * 0.32) +
+      ' Z" fill="' + col + '"/>';
+    // 결 — 층이 진 머리카락 선
+    s += '<path d="M' + avn(cx + r * 0.74) + ' ' + avn(hy - r * 0.78) + ' C' + avn(cx + r * 0.9) + ' ' + avn(hy - r * 0.5) + ' ' + avn(cx + r * 0.94) + ' ' + avn(hy - r * 0.28) + ' ' + avn(cx + r * 0.86) + ' ' + avn(hy - r * 0.12) +
+      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.075) + '" fill="none" stroke-linecap="round" opacity=".5"/>';
+    s += '<path d="M' + avn(cx + r * 0.1) + ' ' + avn(hy - r * 0.86) + ' C' + avn(cx + r * 0.02) + ' ' + avn(hy - r * 0.66) + ' ' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.52) + ' ' + avn(cx - r * 0.24) + ' ' + avn(hy - r * 0.4) +
+      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".45"/>';
+    s += '<path d="M' + avn(cx - r * 0.62) + ' ' + avn(hy - r * 0.8) + ' C' + avn(cx - r * 0.8) + ' ' + avn(hy - r * 0.6) + ' ' + avn(cx - r * 0.88) + ' ' + avn(hy - r * 0.48) + ' ' + avn(cx - r * 0.88) + ' ' + avn(hy - r * 0.36) +
+      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".45"/>';
+    // 귀 앞으로 흘러내린 옆머리
+    s += '<path d="M' + avn(cx - r * 0.98) + ' ' + avn(hy - r * 0.12) +
+      ' C' + avn(cx - r * 1.12) + ' ' + avn(hy + r * 0.2) + ' ' + avn(cx - r * 1.06) + ' ' + avn(hy + r * 0.44) + ' ' + avn(cx - r * 0.88) + ' ' + avn(hy + r * 0.66) +
+      ' L' + avn(cx - r * 0.74) + ' ' + avn(hy + r * 0.34) +
+      ' C' + avn(cx - r * 0.84) + ' ' + avn(hy + r * 0.14) + ' ' + avn(cx - r * 0.88) + ' ' + avn(hy + r * 0.02) + ' ' + avn(cx - r * 0.84) + ' ' + avn(hy - r * 0.12) + ' Z" fill="' + col + '"/>';
+    s += '<path d="M' + avn(cx + r * 0.98) + ' ' + avn(hy - r * 0.12) +
+      ' C' + avn(cx + r * 1.12) + ' ' + avn(hy + r * 0.2) + ' ' + avn(cx + r * 1.06) + ' ' + avn(hy + r * 0.44) + ' ' + avn(cx + r * 0.88) + ' ' + avn(hy + r * 0.66) +
+      ' L' + avn(cx + r * 0.74) + ' ' + avn(hy + r * 0.34) +
+      ' C' + avn(cx + r * 0.84) + ' ' + avn(hy + r * 0.14) + ' ' + avn(cx + r * 0.88) + ' ' + avn(hy + r * 0.02) + ' ' + avn(cx + r * 0.84) + ' ' + avn(hy - r * 0.12) + ' Z" fill="' + col + '"/>';
+    s += '<path d="M' + avn(cx - r * 0.5) + ' ' + avn(hy - r * 1.04) + ' C' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.9) + ' ' + avn(cx + r * 0.4) + ' ' + avn(hy - r * 0.92) + ' ' + avn(cx + r * 0.72) + ' ' + avn(hy - r * 0.72) +
+      '" stroke="' + hi + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".26"/>';
   } else if (a.hair === 'bob') {
-    s += '<path d="M' + L + ' ' + avn(hy - r * 0.2) +
-      ' Q' + cx + ' ' + avn(hy - r * 1.26) + ' ' + R + ' ' + avn(hy - r * 0.2) +
-      ' L' + R + ' ' + avn(hy - r * 0.02) +
-      ' Q' + cx + ' ' + avn(hy - r * 0.16) + ' ' + L + ' ' + avn(hy - r * 0.02) + ' Z" fill="' + col + '"/>';
-    s += '<path d="M' + avn(cx - r - 1) + ' ' + avn(hy - r * 0.35) + ' q-2.4 ' + avn(r * 1.0) + ' 0.4 ' + avn(r * 1.5) +
-      ' q3.2 ' + avn(-r * 0.05) + ' 3.4 ' + avn(-r * 0.35) + ' q-2.6 ' + avn(-r * 0.5) + ' -1 ' + avn(-r * 1.15) + ' Z" fill="' + col + '"/>';
-    s += '<path d="M' + avn(cx + r + 1) + ' ' + avn(hy - r * 0.35) + ' q2.4 ' + avn(r * 1.0) + ' -0.4 ' + avn(r * 1.5) +
-      ' q-3.2 ' + avn(-r * 0.05) + ' -3.4 ' + avn(-r * 0.35) + ' q2.6 ' + avn(-r * 0.5) + ' 1 ' + avn(-r * 1.15) + ' Z" fill="' + col + '"/>';
-  } else if (a.hair === 'long') {
-    // 가르마
-    const wing = function (sign) {
-      const x0 = avn(cx + sign * r * 0.07);
-      const x1 = avn(cx + sign * (r + 1.5));
-      return 'M' + x0 + ' ' + avn(hy - r * 1.02) +
-        ' Q' + avn(cx + sign * r * 0.8) + ' ' + avn(hy - r * 1.08) + ' ' + x1 + ' ' + avn(hy - r * 0.3) +
-        ' L' + x1 + ' ' + avn(hy + r * 0.12) +
-        ' Q' + avn(cx + sign * r * 0.72) + ' ' + avn(hy - r * 0.38) + ' ' + x0 + ' ' + avn(hy - r * 0.62) + ' Z';
-    };
-    s += '<path d="' + wing(-1) + '" fill="' + col + '"/>';
-    s += '<path d="' + wing(1) + '" fill="' + col + '"/>';
-    // 어깨 위로 내려오는 머리
-    s += '<path d="M' + avn(cx - r - 1) + ' ' + avn(hy - r * 0.3) +
-      ' C' + avn(cx - r - 3.5) + ' ' + avn(hy + r * 0.8) + ' ' + avn(cx - r - 4) + ' ' + avn(hy + r * 1.7) + ' ' + avn(cx - r - 2.5) + ' ' + avn(hy + r * 2.3) +
-      ' L' + avn(cx - r * 0.45) + ' ' + avn(hy + r * 2.3) +
-      ' C' + avn(cx - r * 0.55) + ' ' + avn(hy + r * 1.5) + ' ' + avn(cx - r * 0.72) + ' ' + avn(hy + r * 0.6) + ' ' + avn(cx - r * 0.9) + ' ' + avn(hy - r * 0.1) + ' Z" fill="' + col + '"/>';
-    s += '<path d="M' + avn(cx + r + 1) + ' ' + avn(hy - r * 0.3) +
-      ' C' + avn(cx + r + 3.5) + ' ' + avn(hy + r * 0.8) + ' ' + avn(cx + r + 4) + ' ' + avn(hy + r * 1.7) + ' ' + avn(cx + r + 2.5) + ' ' + avn(hy + r * 2.3) +
-      ' L' + avn(cx + r * 0.45) + ' ' + avn(hy + r * 2.3) +
-      ' C' + avn(cx + r * 0.55) + ' ' + avn(hy + r * 1.5) + ' ' + avn(cx + r * 0.72) + ' ' + avn(hy + r * 0.6) + ' ' + avn(cx + r * 0.9) + ' ' + avn(hy - r * 0.1) + ' Z" fill="' + col + '"/>';
-  } else if (a.hair === 'pony') {
-    s += '<path d="M' + L + ' ' + avn(hy - r * 0.1) +
-      ' Q' + avn(cx - r * 0.9) + ' ' + avn(hy - r * 1.16) + ' ' + avn(cx + r * 0.1) + ' ' + avn(hy - r * 1.02) +
-      ' Q' + avn(cx + r * 0.95) + ' ' + avn(hy - r * 0.95) + ' ' + R + ' ' + avn(hy - r * 0.2) +
-      ' Q' + avn(cx + r * 0.4) + ' ' + avn(hy - r * 0.5) + ' ' + avn(cx - r * 0.3) + ' ' + avn(hy - r * 0.44) +
-      ' Q' + avn(cx - r * 0.8) + ' ' + avn(hy - r * 0.38) + ' ' + L + ' ' + avn(hy - r * 0.1) + ' Z" fill="' + col + '"/>';
-  } else if (a.hair === 'curly') {
-    const N = 7;
-    for (let i = 0; i < N; i++) {
-      const t = (i / (N - 1)) * 2 - 1;
-      const x = cx + t * (r + 0.8);
-      const y = hy - r * 0.12 - Math.sqrt(Math.max(0, 1 - t * t)) * r * 0.88;
-      s += '<circle cx="' + avn(x) + '" cy="' + avn(y) + '" r="' + avn(r * 0.33) + '" fill="' + col + '"/>';
-    }
-    s += '<circle cx="' + avn(cx - r - 0.6) + '" cy="' + avn(hy + r * 0.2) + '" r="' + avn(r * 0.3) + '" fill="' + col + '"/>';
-    s += '<circle cx="' + avn(cx + r + 0.6) + '" cy="' + avn(hy + r * 0.2) + '" r="' + avn(r * 0.3) + '" fill="' + col + '"/>';
-    s += '<circle cx="' + avn(cx - r * 0.45) + '" cy="' + avn(hy - r * 0.55) + '" r="' + avn(r * 0.26) + '" fill="' + col + '"/>';
-    s += '<circle cx="' + avn(cx + r * 0.4) + '" cy="' + avn(hy - r * 0.62) + '" r="' + avn(r * 0.22) + '" fill="' + col + '"/>';
+    s += avHairShell(cx, hy, r, col, 0.82, 0.54, 1.7);
+    // 턱선에서 둥글게 끝나는 옆머리
+    s += '<path d="M' + avn(cx - r * 0.98) + ' ' + avn(hy - r * 0.2) +
+      ' C' + avn(cx - r * 1.16) + ' ' + avn(hy + r * 0.24) + ' ' + avn(cx - r * 1.12) + ' ' + avn(hy + r * 0.66) + ' ' + avn(cx - r * 0.86) + ' ' + avn(hy + r * 0.9) +
+      ' Q' + avn(cx - r * 0.66) + ' ' + avn(hy + r * 1.0) + ' ' + avn(cx - r * 0.62) + ' ' + avn(hy + r * 0.8) +
+      ' C' + avn(cx - r * 0.78) + ' ' + avn(hy + r * 0.5) + ' ' + avn(cx - r * 0.84) + ' ' + avn(hy + r * 0.1) + ' ' + avn(cx - r * 0.8) + ' ' + avn(hy - r * 0.2) + ' Z" fill="' + col + '"/>';
+    s += '<path d="M' + avn(cx + r * 0.98) + ' ' + avn(hy - r * 0.2) +
+      ' C' + avn(cx + r * 1.16) + ' ' + avn(hy + r * 0.24) + ' ' + avn(cx + r * 1.12) + ' ' + avn(hy + r * 0.66) + ' ' + avn(cx + r * 0.86) + ' ' + avn(hy + r * 0.9) +
+      ' Q' + avn(cx + r * 0.66) + ' ' + avn(hy + r * 1.0) + ' ' + avn(cx + r * 0.62) + ' ' + avn(hy + r * 0.8) +
+      ' C' + avn(cx + r * 0.78) + ' ' + avn(hy + r * 0.5) + ' ' + avn(cx + r * 0.84) + ' ' + avn(hy + r * 0.1) + ' ' + avn(cx + r * 0.8) + ' ' + avn(hy - r * 0.2) + ' Z" fill="' + col + '"/>';
+    // 가지런한 앞머리
+    s += '<path d="M' + avn(cx - r * 0.97) + ' ' + avn(hy - r * 0.16) +
+      ' C' + avn(cx - r * 0.9) + ' ' + avn(hy - r * 0.7) + ' ' + avn(cx - r * 0.3) + ' ' + avn(hy - r * 0.98) + ' ' + avn(cx + r * 0.2) + ' ' + avn(hy - r * 0.96) +
+      ' C' + avn(cx + r * 0.76) + ' ' + avn(hy - r * 0.94) + ' ' + avn(cx + r * 0.97) + ' ' + avn(hy - r * 0.6) + ' ' + avn(cx + r * 0.97) + ' ' + avn(hy - r * 0.16) +
+      ' Q' + avn(cx + r * 0.52) + ' ' + avn(hy - r * 0.46) + ' ' + avn(cx) + ' ' + avn(hy - r * 0.44) +
+      ' Q' + avn(cx - r * 0.52) + ' ' + avn(hy - r * 0.46) + ' ' + avn(cx - r * 0.97) + ' ' + avn(hy - r * 0.16) + ' Z" fill="' + col + '"/>';
+  } else if (a.hair === 'bun') {
+    s += avHairShell(cx, hy, r, col, 0.22, 0.74, 1.2);
+    // 옆 가르마 — 한쪽으로 넘긴 결
+    s += '<path d="M' + avn(cx - r * 0.36) + ' ' + avn(hy - r * 1.24) +
+      ' C' + avn(cx - r * 0.72) + ' ' + avn(hy - r * 0.9) + ' ' + avn(cx - r * 0.94) + ' ' + avn(hy - r * 0.5) + ' ' + avn(cx - r * 0.9) + ' ' + avn(hy - r * 0.06) +
+      ' C' + avn(cx - r * 0.55) + ' ' + avn(hy - r * 0.44) + ' ' + avn(cx - r * 0.3) + ' ' + avn(hy - r * 0.82) + ' ' + avn(cx - r * 0.24) + ' ' + avn(hy - r * 1.18) + ' Z" fill="' + col + '"/>';
+    s += '<path d="M' + avn(cx - r * 0.36) + ' ' + avn(hy - r * 1.22) +
+      ' C' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.94) + ' ' + avn(cx + r * 0.5) + ' ' + avn(hy - r * 0.9) + ' ' + avn(cx + r * 0.8) + ' ' + avn(hy - r * 0.56) + ' Z" fill="' + sh + '"/>';
+    // 귀 앞 잔머리
+    s += '<path d="M' + avn(cx - r * 0.94) + ' ' + avn(hy - r * 0.24) + ' L' + avn(cx - r * 0.88) + ' ' + avn(hy + r * 0.3) +
+      ' Q' + avn(cx - r * 0.8) + ' ' + avn(hy + r * 0.38) + ' ' + avn(cx - r * 0.74) + ' ' + avn(hy + r * 0.26) +
+      ' L' + avn(cx - r * 0.82) + ' ' + avn(hy - r * 0.24) + ' Z" fill="' + col + '"/>';
+    s += '<path d="M' + avn(cx + r * 0.94) + ' ' + avn(hy - r * 0.24) + ' L' + avn(cx + r * 0.88) + ' ' + avn(hy + r * 0.3) +
+      ' Q' + avn(cx + r * 0.8) + ' ' + avn(hy + r * 0.38) + ' ' + avn(cx + r * 0.74) + ' ' + avn(hy + r * 0.26) +
+      ' L' + avn(cx + r * 0.82) + ' ' + avn(hy - r * 0.24) + ' Z" fill="' + col + '"/>';
+    s += '<path d="M' + avn(cx + r * 0.1) + ' ' + avn(hy - r * 1.2) + ' C' + avn(cx + r * 0.45) + ' ' + avn(hy - r * 0.98) + ' ' + avn(cx + r * 0.72) + ' ' + avn(hy - r * 0.74) + ' ' + avn(cx + r * 0.86) + ' ' + avn(hy - r * 0.5) +
+      '" stroke="' + hi + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".26"/>';
+  } else {
+    // wave — 물결 펌
+    s += avHairShell(cx, hy, r, col, 0.9, 0.56, 1.8);
+    // 옆으로 흐르는 물결 결
+    s += '<path d="M' + avn(cx - r * 1.02) + ' ' + avn(hy - r * 0.02) +
+      ' C' + avn(cx - r * 1.12) + ' ' + avn(hy + r * 0.4) + ' ' + avn(cx - r * 1.0) + ' ' + avn(hy + r * 0.66) + ' ' + avn(cx - r * 0.9) + ' ' + avn(hy + r * 0.94) +
+      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.09) + '" fill="none" stroke-linecap="round" opacity=".55"/>';
+    s += '<path d="M' + avn(cx + r * 1.02) + ' ' + avn(hy - r * 0.02) +
+      ' C' + avn(cx + r * 1.12) + ' ' + avn(hy + r * 0.4) + ' ' + avn(cx + r * 1.0) + ' ' + avn(hy + r * 0.66) + ' ' + avn(cx + r * 0.9) + ' ' + avn(hy + r * 0.94) +
+      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.09) + '" fill="none" stroke-linecap="round" opacity=".55"/>';
+    // 부드러운 가르마 앞머리
+    s += '<path d="M' + avn(cx - r * 0.94) + ' ' + avn(hy - r * 0.18) +
+      ' C' + avn(cx - r * 0.86) + ' ' + avn(hy - r * 0.74) + ' ' + avn(cx - r * 0.24) + ' ' + avn(hy - r * 0.99) + ' ' + avn(cx + r * 0.24) + ' ' + avn(hy - r * 0.96) +
+      ' C' + avn(cx + r * 0.8) + ' ' + avn(hy - r * 0.92) + ' ' + avn(cx + r * 0.95) + ' ' + avn(hy - r * 0.58) + ' ' + avn(cx + r * 0.94) + ' ' + avn(hy - r * 0.18) +
+      ' C' + avn(cx + r * 0.72) + ' ' + avn(hy - r * 0.5) + ' ' + avn(cx + r * 0.3) + ' ' + avn(hy - r * 0.4) + ' ' + avn(cx - r * 0.02) + ' ' + avn(hy - r * 0.52) +
+      ' C' + avn(cx - r * 0.36) + ' ' + avn(hy - r * 0.66) + ' ' + avn(cx - r * 0.7) + ' ' + avn(hy - r * 0.44) + ' ' + avn(cx - r * 0.94) + ' ' + avn(hy - r * 0.18) + ' Z" fill="' + col + '"/>';
   }
   return s;
 }
@@ -305,7 +402,6 @@ function avFace(kind, cx, hy, r) {
   const mx = cx;
   const my = hy + r * 0.55;
   const erx = r * 0.105, ery = r * 0.135;
-  const w = avn(r * 0.1);
   let s = '';
 
   const eyeBall = function (x, y, rx, ry) {
@@ -316,29 +412,31 @@ function avFace(kind, cx, hy, r) {
   const brow = function (x, y, tilt) {
     return '<path d="M' + avn(x - r * 0.17) + ' ' + avn(y + tilt) + ' Q' + avn(x) + ' ' + avn(y - r * 0.07 + tilt) + ' ' + avn(x + r * 0.17) + ' ' + avn(y - tilt) + '" stroke="' + AV_INK + '" stroke-width="' + avn(r * 0.075) + '" fill="none" stroke-linecap="round" opacity=".85"/>';
   };
-  const blush = '<ellipse cx="' + avn(cx - r * 0.62) + '" cy="' + avn(hy + r * 0.38) + '" rx="' + avn(r * 0.15) + '" ry="' + avn(r * 0.09) + '" fill="#ff9aa8" opacity=".55"/>' +
-    '<ellipse cx="' + avn(cx + r * 0.62) + '" cy="' + avn(hy + r * 0.38) + '" rx="' + avn(r * 0.15) + '" ry="' + avn(r * 0.09) + '" fill="#ff9aa8" opacity=".55"/>';
+  /* 볼터치는 아주 옅게 — 성별 인상 없이 표정만 살린다 */
+  const blush = '<ellipse cx="' + avn(cx - r * 0.62) + '" cy="' + avn(hy + r * 0.4) + '" rx="' + avn(r * 0.14) + '" ry="' + avn(r * 0.08) + '" fill="#f6a9a0" opacity=".32"/>' +
+    '<ellipse cx="' + avn(cx + r * 0.62) + '" cy="' + avn(hy + r * 0.4) + '" rx="' + avn(r * 0.14) + '" ry="' + avn(r * 0.08) + '" fill="#f6a9a0" opacity=".32"/>';
+  const LIP = '#8a5a4c';
 
   if (kind === 'smile') {
     s += brow(cx - ex, ey - r * 0.4, 0) + brow(cx + ex, ey - r * 0.4, 0);
     s += eyeBall(cx - ex, ey, erx, ery) + eyeBall(cx + ex, ey, erx, ery);
     s += blush;
-    s += '<path d="M' + avn(mx - r * 0.24) + ' ' + avn(my - r * 0.06) + ' Q' + avn(mx) + ' ' + avn(my + r * 0.34) + ' ' + avn(mx + r * 0.24) + ' ' + avn(my - r * 0.06) +
-      '" stroke="#c2410c" stroke-width="' + avn(r * 0.11) + '" fill="none" stroke-linecap="round"/>';
+    s += '<path d="M' + avn(mx - r * 0.24) + ' ' + avn(my - r * 0.06) + ' Q' + avn(mx) + ' ' + avn(my + r * 0.32) + ' ' + avn(mx + r * 0.24) + ' ' + avn(my - r * 0.06) +
+      '" stroke="' + LIP + '" stroke-width="' + avn(r * 0.1) + '" fill="none" stroke-linecap="round"/>';
   } else if (kind === 'wink') {
     s += brow(cx - ex, ey - r * 0.4, 0) + brow(cx + ex, ey - r * 0.46, 0);
     s += eyeBall(cx - ex, ey, erx, ery);
     s += '<path d="M' + avn(cx + ex - r * 0.12) + ' ' + avn(ey) + ' Q' + avn(cx + ex) + ' ' + avn(ey - r * 0.15) + ' ' + avn(cx + ex + r * 0.12) + ' ' + avn(ey) +
       '" stroke="' + AV_INK + '" stroke-width="' + avn(r * 0.1) + '" fill="none" stroke-linecap="round"/>';
     s += blush;
-    s += '<path d="M' + avn(mx - r * 0.2) + ' ' + avn(my) + ' Q' + avn(mx + r * 0.04) + ' ' + avn(my + r * 0.26) + ' ' + avn(mx + r * 0.22) + ' ' + avn(my - r * 0.04) +
-      '" stroke="#c2410c" stroke-width="' + avn(r * 0.1) + '" fill="none" stroke-linecap="round"/>';
+    s += '<path d="M' + avn(mx - r * 0.2) + ' ' + avn(my) + ' Q' + avn(mx + r * 0.04) + ' ' + avn(my + r * 0.24) + ' ' + avn(mx + r * 0.22) + ' ' + avn(my - r * 0.04) +
+      '" stroke="' + LIP + '" stroke-width="' + avn(r * 0.095) + '" fill="none" stroke-linecap="round"/>';
   } else if (kind === 'focus') {
     s += brow(cx - ex, ey - r * 0.34, r * 0.09) + brow(cx + ex, ey - r * 0.34, -r * 0.09);
     s += '<ellipse cx="' + avn(cx - ex) + '" cy="' + avn(ey) + '" rx="' + avn(r * 0.12) + '" ry="' + avn(r * 0.055) + '" fill="' + AV_INK + '"/>';
     s += '<ellipse cx="' + avn(cx + ex) + '" cy="' + avn(ey) + '" rx="' + avn(r * 0.12) + '" ry="' + avn(r * 0.055) + '" fill="' + AV_INK + '"/>';
     s += '<path d="M' + avn(mx - r * 0.15) + ' ' + avn(my + r * 0.06) + ' L' + avn(mx + r * 0.15) + ' ' + avn(my + r * 0.06) +
-      '" stroke="#a1471f" stroke-width="' + avn(r * 0.095) + '" stroke-linecap="round"/>';
+      '" stroke="' + LIP + '" stroke-width="' + avn(r * 0.09) + '" stroke-linecap="round"/>';
   } else if (kind === 'wow') {
     s += brow(cx - ex, ey - r * 0.52, 0) + brow(cx + ex, ey - r * 0.52, 0);
     s += '<circle cx="' + avn(cx - ex) + '" cy="' + avn(ey) + '" r="' + avn(r * 0.17) + '" fill="#ffffff" stroke="' + AV_INK + '" stroke-width="' + avn(r * 0.04) + '"/>';
@@ -346,8 +444,8 @@ function avFace(kind, cx, hy, r) {
     s += '<circle cx="' + avn(cx - ex) + '" cy="' + avn(ey) + '" r="' + avn(r * 0.085) + '" fill="' + AV_INK + '"/>';
     s += '<circle cx="' + avn(cx + ex) + '" cy="' + avn(ey) + '" r="' + avn(r * 0.085) + '" fill="' + AV_INK + '"/>';
     s += blush;
-    s += '<ellipse cx="' + avn(mx) + '" cy="' + avn(my + r * 0.05) + '" rx="' + avn(r * 0.14) + '" ry="' + avn(r * 0.18) + '" fill="#b91c1c"/>';
-    s += '<ellipse cx="' + avn(mx) + '" cy="' + avn(my + r * 0.13) + '" rx="' + avn(r * 0.1) + '" ry="' + avn(r * 0.07) + '" fill="#ff8fa3"/>';
+    s += '<ellipse cx="' + avn(mx) + '" cy="' + avn(my + r * 0.05) + '" rx="' + avn(r * 0.14) + '" ry="' + avn(r * 0.18) + '" fill="#a85452"/>';
+    s += '<ellipse cx="' + avn(mx) + '" cy="' + avn(my + r * 0.13) + '" rx="' + avn(r * 0.1) + '" ry="' + avn(r * 0.07) + '" fill="#e08f8c"/>';
     s += '<path d="M' + avn(cx + r * 0.78) + ' ' + avn(hy - r * 0.7) + ' l' + avn(r * 0.05) + ' ' + avn(r * 0.16) + ' l' + avn(r * 0.16) + ' ' + avn(r * 0.05) +
       ' l' + avn(-r * 0.16) + ' ' + avn(r * 0.05) + ' l' + avn(-r * 0.05) + ' ' + avn(r * 0.16) + ' l' + avn(-r * 0.05) + ' ' + avn(-r * 0.16) +
       ' l' + avn(-r * 0.16) + ' ' + avn(-r * 0.05) + ' l' + avn(r * 0.16) + ' ' + avn(-r * 0.05) + ' Z" fill="#fbbf24"/>';
@@ -361,8 +459,8 @@ function avFace(kind, cx, hy, r) {
       '" stroke="' + AV_INK + '" stroke-width="' + avn(r * 0.1) + '" fill="none" stroke-linecap="round"/>';
     s += eyeBall(cx + ex, ey, erx * 0.95, ery * 0.95);
     s += blush;
-    s += '<path d="M' + avn(mx - r * 0.22) + ' ' + avn(my - r * 0.1) + ' Q' + avn(mx) + ' ' + avn(my + r * 0.3) + ' ' + avn(mx + r * 0.22) + ' ' + avn(my - r * 0.1) + ' Z" fill="#b91c1c"/>';
-    s += '<ellipse cx="' + avn(mx) + '" cy="' + avn(my + r * 0.19) + '" rx="' + avn(r * 0.1) + '" ry="' + avn(r * 0.09) + '" fill="#ff8fa3"/>';
+    s += '<path d="M' + avn(mx - r * 0.22) + ' ' + avn(my - r * 0.1) + ' Q' + avn(mx) + ' ' + avn(my + r * 0.28) + ' ' + avn(mx + r * 0.22) + ' ' + avn(my - r * 0.1) + ' Z" fill="#a85452"/>';
+    s += '<ellipse cx="' + avn(mx) + '" cy="' + avn(my + r * 0.17) + '" rx="' + avn(r * 0.1) + '" ry="' + avn(r * 0.09) + '" fill="#e08f8c"/>';
   }
   return s;
 }
@@ -380,7 +478,6 @@ function avSVG(value, opt) {
 
   let g = '';
   g += avHairBack(a, cx, hy, r, hair);
-  g += avHairCap(a, cx, hy, r, hair);
   g += avTorso(a, b, st);
   // 목
   g += '<rect x="' + avn(cx - b.nw) + '" y="' + avn(hy + r * 0.62) + '" width="' + avn(b.nw * 2) +
