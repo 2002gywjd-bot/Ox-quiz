@@ -64,9 +64,24 @@
       <input id="join-name" type="text" maxlength="10" placeholder="예: 민준" autocomplete="off">
     </label>
 
-    <div class="field">
-      <span>캐릭터 고르기</span>
-      <div class="avatar-grid" id="avatar-grid"></div>
+    <div class="field av-field">
+      <span>내 캐릭터 만들기</span>
+      <div class="av-picker">
+        <div class="av-preview-row">
+          <div class="av-preview" id="av-preview" aria-hidden="true"></div>
+          <div class="av-preview-info">
+            <p class="av-preview-name" id="av-name">나만의 캐릭터</p>
+            <button type="button" class="btn btn-soft btn-mini" id="btn-av-random">🎲 랜덤 꾸미기</button>
+          </div>
+        </div>
+        <div class="av-tabs" id="av-tabs" role="tablist">
+          <button type="button" class="av-tab on" data-tab="expr" role="tab" aria-selected="true"><i>😊</i>표정</button>
+          <button type="button" class="av-tab" data-tab="hair" role="tab" aria-selected="false"><i>💇</i>머리</button>
+          <button type="button" class="av-tab" data-tab="body" role="tab" aria-selected="false"><i>🧍</i>체형</button>
+          <button type="button" class="av-tab" data-tab="style" role="tab" aria-selected="false"><i>👕</i>스타일</button>
+        </div>
+        <div class="av-opts" id="av-opts" role="radiogroup"></div>
+      </div>
     </div>
 
     <button class="btn btn-primary btn-xl" id="btn-join-go" type="submit">입장하기 🚀</button>
