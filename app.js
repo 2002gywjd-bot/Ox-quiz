@@ -14,7 +14,7 @@
   const perf = () => (window.performance && performance.now ? performance.now() : Date.now());
 
 /* ══════════════════════════════════════════════════════════
-   전신 사람 캐릭터 — 표정 8 · 머리 8 · 체형 6 · 스타일 8
+   전신 사람 캐릭터 — 표정 8 · 머리 12 · 체형 6 · 스타일 8
    머리 → 목 → 상의 → 하의 → 신발(발)까지 나오는 2~2.5등신.
    성별을 고정하지 않는 중성적인 톤으로 그린다.
    같은 조합이면 언제나 같은 SVG가 나오므로, 선생님 화면·학생 화면·
@@ -22,7 +22,7 @@
    ══════════════════════════════════════════════════════════ */
 const AV_PART = {
   expr: ['smile', 'grin', 'wink', 'focus', 'wow', 'tongue', 'pout', 'star'],
-  hair: ['short', 'bob', 'wolf', 'bun', 'wave', 'spiky', 'curly', 'pony'],
+  hair: ['mohawk', 'dread', 'perm', 'twoblock', 'part', 'pomade', 'buzz', 'spiky', 'wolf', 'bob', 'bun', 'wave'],
   body: ['petite', 'slim', 'normal', 'sturdy', 'round', 'tall'],
   style: ['hoodie', 'shirtvest', 'overalls', 'varsity', 'jersey', 'cardigan', 'stripe', 'anorak']
 };
@@ -37,15 +37,17 @@ const AV_TABS = [
 const AV_LABEL = {
   smile: '미소', grin: '활짝', wink: '윙크', focus: '진지',
   wow: '놀람', tongue: '메롱', pout: '삐죽', star: '반짝',
-  short: '숏컷', bob: '단발', wolf: '울프컷', bun: '묶음',
-  wave: '웨이브', spiky: '삐죽', curly: '곱슬', pony: '포니테일',
+  mohawk: '모히칸', dread: '레게머리', perm: '파마', twoblock: '투블럭',
+  part: '가르마', pomade: '포마드', buzz: '반삭', spiky: '삐죽',
+  wolf: '울프컷', bob: '단발', bun: '묶음', wave: '웨이브',
+  short: '숏컷', curly: '곱슬', pony: '포니테일',
   petite: '아담', slim: '슬림', normal: '보통',
   sturdy: '듬직', round: '통통', tall: '키다리',
   hoodie: '후드+조거', shirtvest: '셔츠+베스트', overalls: '멜빵데님', varsity: '야구점퍼',
   jersey: '트레이닝', cardigan: '가디건+치노', stripe: '스트라이프', anorak: '아노락'
 };
 
-const AV_DEFAULT = { expr: 'smile', hair: 'short', body: 'normal', style: 'hoodie' };
+const AV_DEFAULT = { expr: 'smile', hair: 'twoblock', body: 'normal', style: 'hoodie' };
 
 /* 체형 — 머리 반지름(r) · 머리 중심(headCy) · 어깨(shw) · 허리(wst) · 엉덩이(hipw)
    · 상의 밑단(hemY) · 팔 두께(armW) · 목 두께(neck) */
@@ -60,14 +62,32 @@ const AV_BODY = {
 
 /* 머리카락 색 — 자연스러운 블랙·다크브라운·애쉬 계열 */
 const AV_HAIR_COLOR = {
-  short: '#302c38',
-  bob: '#4a3b2f',
-  wolf: '#2f2b33',
-  bun: '#3d3140',
-  wave: '#5a4636',
+  mohawk: '#2e2a34',
+  dread: '#3b2f28',
+  perm: '#5a4433',
+  twoblock: '#322d3a',
+  part: '#3f3229',
+  pomade: '#2b2731',
+  buzz: '#3a3540',
   spiky: '#3a3340',
-  curly: '#4b3a2e',
-  pony: '#332b33'
+  wolf: '#2f2b33',
+  bob: '#4a3b2f',
+  bun: '#3d3140',
+  wave: '#5a4636'
+};
+
+/* 예전에 저장된 머리 키도 새 스타일로 이어 준다 (오류 없이 매핑) */
+const AV_HAIR_ALIAS = {
+  short: 'twoblock', crop: 'twoblock', dandy: 'twoblock', twoblockcut: 'twoblock', two: 'twoblock',
+  curly: 'perm', afro: 'perm', volume: 'perm', pama: 'perm',
+  pony: 'bun', ponytail: 'bun', lowbun: 'bun', braid: 'bun', updo: 'bun',
+  slick: 'pomade', slickback: 'pomade', allback: 'pomade', back: 'pomade',
+  fade: 'buzz', crew: 'buzz', crewcut: 'buzz', buzzcut: 'buzz', shaved: 'buzz',
+  mohican: 'mohawk', mohegan: 'mohawk',
+  dreads: 'dread', dreadlock: 'dread', dreadlocks: 'dread', reggae: 'dread', wig: 'dread',
+  side: 'part', sidepart: 'part', '6:4': 'part', combover: 'part',
+  spike: 'spiky', spikes: 'spiky',
+  long: 'wave', layered: 'wolf', layer: 'wolf'
 };
 
 /* 스타일 — 상의 + 하의 + 신발 세트 코디 */
@@ -119,7 +139,7 @@ const AV_SKIN2 = '#f0b995';
 const AV_SKIN3 = '#e0a07f';
 const AV_INK = '#3b2c3a';
 const AV_GROUND = 149;          /* 발바닥이 닿는 선 */
-const AV_VIEWBOX = '0 -2 100 160';
+const AV_VIEWBOX = '0 -9.5 100 167.5';   /* 솟은 머리(모히칸·스파이크)까지 잘리지 않게 위를 넓힌다 */
 
 let AV_UID = 0;
 
@@ -127,6 +147,13 @@ function avn(v) { return Math.round(v * 10) / 10; }
 
 function avPick(list, v, fallback) {
   return list.indexOf(v) >= 0 ? v : fallback;
+}
+
+function avHairPick(v) {
+  if (AV_PART.hair.indexOf(v) >= 0) return v;
+  const k = String(v == null ? '' : v).toLowerCase().replace(/[\s_-]/g, '');
+  const al = AV_HAIR_ALIAS[k];
+  return al && AV_PART.hair.indexOf(al) >= 0 ? al : AV_DEFAULT.hair;
 }
 
 /* 색을 어둡게(k<1) 만든다 — 머리 결·옷 주름에 쓴다 */
@@ -143,7 +170,7 @@ function normalizeAvatar(v) {
   if (v && typeof v === 'object') {
     return {
       expr: avPick(AV_PART.expr, v.expr, AV_DEFAULT.expr),
-      hair: avPick(AV_PART.hair, v.hair, AV_DEFAULT.hair),
+      hair: avHairPick(v.hair),
       body: avPick(AV_PART.body, v.body, AV_DEFAULT.body),
       style: avPick(AV_PART.style, v.style, AV_DEFAULT.style)
     };
@@ -559,6 +586,28 @@ function avHairShell(cx, hy, r, col, side, line, w) {
     ' Z" fill="' + col + '"/>';
 }
 
+/* 짧은 머리 캡 — 머리통에 딱 붙는 짧은 머리를 그린다.
+   outer: 정수리 높이(r 배수), inner: 이마 헤어라인 높이(r 배수),
+   temple: 옆머리가 내려오는 정도(r 배수) */
+function avHairCap(cx, hy, r, col, outer, inner, temple) {
+  const L = cx - r, R = cx + r;
+  const ty = hy + r * temple;
+  return '<path d="M' + avn(L) + ' ' + avn(ty) +
+    ' C' + avn(cx - r * 1.02) + ' ' + avn(hy - r * outer * 0.6) + ' ' + avn(cx - r * 0.6) + ' ' + avn(hy - r * outer) + ' ' + avn(cx) + ' ' + avn(hy - r * outer) +
+    ' C' + avn(cx + r * 0.6) + ' ' + avn(hy - r * outer) + ' ' + avn(cx + r * 1.02) + ' ' + avn(hy - r * outer * 0.6) + ' ' + avn(R) + ' ' + avn(ty) +
+    ' L' + avn(cx + r * 0.92) + ' ' + avn(hy + r * temple * 0.55) +
+    ' C' + avn(cx + r * 0.94) + ' ' + avn(hy - r * inner * 0.55) + ' ' + avn(cx + r * 0.52) + ' ' + avn(hy - r * inner) + ' ' + avn(cx) + ' ' + avn(hy - r * inner) +
+    ' C' + avn(cx - r * 0.52) + ' ' + avn(hy - r * inner) + ' ' + avn(cx - r * 0.94) + ' ' + avn(hy - r * inner * 0.55) + ' ' + avn(cx - r * 0.92) + ' ' + avn(hy + r * temple * 0.55) +
+    ' Z" fill="' + col + '"/>';
+}
+
+/* 굵은 가닥 하나 — 드레드록·긴 머리카락을 둥근 획으로 그린다 */
+function avHairStrand(x1, y1, qx, qy, x2, y2, w, col, op) {
+  return '<path d="M' + avn(x1) + ' ' + avn(y1) + ' Q' + avn(qx) + ' ' + avn(qy) + ' ' + avn(x2) + ' ' + avn(y2) +
+    '" stroke="' + col + '" stroke-width="' + avn(w) + '" fill="none" stroke-linecap="round"' +
+    (op == null ? '' : ' opacity="' + op + '"') + '/>';
+}
+
 /* 뒤통수 쪽 머리 (얼굴 뒤에 깔린다) */
 function avHairBack(a, cx, hy, r, col) {
   const sh = avShade(col, 0.78);
@@ -584,11 +633,15 @@ function avHairBack(a, cx, hy, r, col) {
       ' C' + avn(cx + r + 3.6) + ' ' + avn(hy + r * 0.92) + ' ' + avn(cx + r + 4.2) + ' ' + avn(hy + r * 0.5) + ' ' + avn(cx + r + 1) + ' ' + avn(hy - r * 0.3) + ' Z" fill="' + col + '"/>';
   }
   if (a.hair === 'bun') {
-    // 낮게 묶은 번 — 뒤통수 아래로 살짝 보인다
-    return '<circle cx="' + avn(cx - r * 0.86) + '" cy="' + avn(hy + r * 0.92) + '" r="' + avn(r * 0.44) + '" fill="' + col + '"/>' +
+    // 낮게 묶은 번 — 뒤통수 아래로 도톰하게 보인다
+    return '<circle cx="' + avn(cx - r * 0.9) + '" cy="' + avn(hy + r * 1.0) + '" r="' + avn(r * 0.46) + '" fill="' + col + '"/>' +
       '<path d="M' + avn(cx - r * 1.12) + ' ' + avn(hy + r * 0.86) +
       ' q' + avn(r * 0.3) + ' ' + avn(r * 0.26) + ' ' + avn(r * 0.52) + ' ' + avn(-r * 0.02) +
-      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.1) + '" fill="none" stroke-linecap="round" opacity=".8"/>';
+      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.1) + '" fill="none" stroke-linecap="round" opacity=".8"/>' +
+      '<path d="M' + avn(cx - r * 1.14) + ' ' + avn(hy + r * 1.12) +
+      ' q' + avn(r * 0.26) + ' ' + avn(r * 0.2) + ' ' + avn(r * 0.5) + ' ' + avn(r * 0.04) +
+      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.09) + '" fill="none" stroke-linecap="round" opacity=".55"/>' +
+      '<ellipse cx="' + avn(cx - r * 1.02) + '" cy="' + avn(hy + r * 0.72) + '" rx="' + avn(r * 0.13) + '" ry="' + avn(r * 0.1) + '" fill="' + sh + '" opacity=".9"/>';
   }
   if (a.hair === 'wave') {
     // 어깨까지 내려오는 물결 — 끝은 안쪽으로 말린다
@@ -630,6 +683,38 @@ function avHairBack(a, cx, hy, r, col) {
       ' C' + avn(cx + r * 1.16) + ' ' + avn(hy + r * 0.42) + ' ' + avn(cx + r * 1.06) + ' ' + avn(hy + r * 0.6) + ' ' + avn(cx + r * 0.94) + ' ' + avn(hy + r * 0.56) +
       '" stroke="' + sh + '" stroke-width="' + avn(r * 0.08) + '" fill="none" stroke-linecap="round" opacity=".45"/>';
   }
+  if (a.hair === 'mohawk') {
+    // 민 머리 — 뒤통수는 거의 드러나고 목덜미에 잔털만 남는다
+    return '<path d="M' + avn(cx - r * 0.82) + ' ' + avn(hy + r * 0.82) +
+      ' Q' + avn(cx) + ' ' + avn(hy + r * 1.04) + ' ' + avn(cx + r * 0.82) + ' ' + avn(hy + r * 0.82) +
+      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.09) + '" fill="none" stroke-linecap="round" opacity=".5"/>';
+  }
+  if (a.hair === 'dread') {
+    // 귀 뒤로 늘어뜨린 굵은 드레드 가닥 — 실루엣을 만든다
+    let d = '';
+    [[-1.06, 1.34, 0.22], [-1.22, 1.56, 0.2], [-1.34, 1.16, 0.17],
+      [1.06, 1.34, 0.22], [1.22, 1.56, 0.2], [1.34, 1.16, 0.17]].forEach(function (st) {
+      const sd = st[0] < 0 ? -1 : 1;
+      d += avHairStrand(cx + sd * r * 0.76, hy - r * 0.56, cx + sd * r * (Math.abs(st[0]) + 0.12), hy + r * 0.5,
+        cx + st[0] * r, hy + st[1] * r, r * st[2], col, 1);
+      d += avHairStrand(cx + sd * r * 0.76, hy - r * 0.52, cx + sd * r * (Math.abs(st[0]) + 0.1), hy + r * 0.5,
+        cx + st[0] * r, hy + st[1] * r, r * st[2] * 0.3, sh, 0.5);
+    });
+    // 가닥을 묶은 구슬
+    d += '<ellipse cx="' + avn(cx - r * 1.2) + '" cy="' + avn(hy + r * 0.5) + '" rx="' + avn(r * 0.09) + '" ry="' + avn(r * 0.065) + '" fill="#e8b56a"/>';
+    d += '<ellipse cx="' + avn(cx + r * 1.2) + '" cy="' + avn(hy + r * 0.76) + '" rx="' + avn(r * 0.08) + '" ry="' + avn(r * 0.06) + '" fill="#7fd3c8"/>';
+    return d;
+  }
+  if (a.hair === 'perm') {
+    // 뒤통수를 감싸고 옆으로 크게 부푼 컬 덩어리
+    let c = '';
+    [[-1.0, -0.5, 0.27], [-1.14, -0.06, 0.26], [-1.04, 0.38, 0.24], [-0.72, 0.86, 0.25],
+      [0, 1.04, 0.28], [0.72, 0.86, 0.25], [1.04, 0.38, 0.24], [1.14, -0.06, 0.26], [1.0, -0.5, 0.27],
+      [-0.62, -0.98, 0.26], [0.04, -1.2, 0.27], [0.62, -0.98, 0.26]].forEach(function (p) {
+      c += '<circle cx="' + avn(cx + p[0] * r) + '" cy="' + avn(hy + p[1] * r) + '" r="' + avn(r * p[2]) + '" fill="' + col + '"/>';
+    });
+    return c;
+  }
   return '';
 }
 
@@ -659,33 +744,42 @@ function avHairFront(a, cx, hy, r, col) {
     s += '<path d="M' + avn(cx - r * 0.34) + ' ' + avn(hy - r * 1.02) + ' C' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.86) + ' ' + avn(cx + r * 0.3) + ' ' + avn(hy - r * 0.86) + ' ' + avn(cx + r * 0.6) + ' ' + avn(hy - r * 0.66) +
       '" stroke="' + hi + '" stroke-width="' + avn(r * 0.075) + '" fill="none" stroke-linecap="round" opacity=".28"/>';
   } else if (a.hair === 'wolf') {
-    s += avHairShell(cx, hy, r, col, 0.5, 0.6, 1.8);
-    // 결이 살아 있는 레이어드 앞머리 — 부드럽게 흐르는 선
-    s += '<path d="M' + avn(cx - r * 0.97) + ' ' + avn(hy - r * 0.12) +
-      ' C' + avn(cx - r * 0.94) + ' ' + avn(hy - r * 0.66) + ' ' + avn(cx - r * 0.4) + ' ' + avn(hy - r * 0.98) + ' ' + avn(cx + r * 0.12) + ' ' + avn(hy - r * 0.96) +
-      ' C' + avn(cx + r * 0.72) + ' ' + avn(hy - r * 0.94) + ' ' + avn(cx + r * 0.98) + ' ' + avn(hy - r * 0.56) + ' ' + avn(cx + r * 0.97) + ' ' + avn(hy - r * 0.12) +
-      ' C' + avn(cx + r * 0.82) + ' ' + avn(hy - r * 0.34) + ' ' + avn(cx + r * 0.62) + ' ' + avn(hy - r * 0.46) + ' ' + avn(cx + r * 0.4) + ' ' + avn(hy - r * 0.46) +
-      ' C' + avn(cx + r * 0.16) + ' ' + avn(hy - r * 0.46) + ' ' + avn(cx - r * 0.04) + ' ' + avn(hy - r * 0.38) + ' ' + avn(cx - r * 0.26) + ' ' + avn(hy - r * 0.38) +
-      ' C' + avn(cx - r * 0.52) + ' ' + avn(hy - r * 0.38) + ' ' + avn(cx - r * 0.74) + ' ' + avn(hy - r * 0.46) + ' ' + avn(cx - r * 0.94) + ' ' + avn(hy - r * 0.32) +
-      ' Z" fill="' + col + '"/>';
-    // 결 — 층이 진 머리카락 선
+    s += avHairShell(cx, hy, r, col, 0.5, 0.58, 1.8);
+    // 가운데서 갈라져 양옆으로 흐르는 커튼 앞머리 — 층마다 끝이 뾰족하다
+    s += '<path d="M' + avn(cx - r * 0.04) + ' ' + avn(hy - r * 1.14) +
+      ' C' + avn(cx - r * 0.5) + ' ' + avn(hy - r * 1.12) + ' ' + avn(cx - r * 0.9) + ' ' + avn(hy - r * 0.74) + ' ' + avn(cx - r * 0.95) + ' ' + avn(hy - r * 0.14) +
+      ' L' + avn(cx - r * 0.8) + ' ' + avn(hy - r * 0.26) +
+      ' L' + avn(cx - r * 0.7) + ' ' + avn(hy - r * 0.14) +
+      ' L' + avn(cx - r * 0.56) + ' ' + avn(hy - r * 0.34) +
+      ' L' + avn(cx - r * 0.38) + ' ' + avn(hy - r * 0.3) +
+      ' C' + avn(cx - r * 0.24) + ' ' + avn(hy - r * 0.42) + ' ' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.66) + ' ' + avn(cx - r * 0.04) + ' ' + avn(hy - r * 0.92) + ' Z" fill="' + col + '"/>';
+    s += '<path d="M' + avn(cx + r * 0.05) + ' ' + avn(hy - r * 1.14) +
+      ' C' + avn(cx + r * 0.5) + ' ' + avn(hy - r * 1.12) + ' ' + avn(cx + r * 0.9) + ' ' + avn(hy - r * 0.74) + ' ' + avn(cx + r * 0.95) + ' ' + avn(hy - r * 0.14) +
+      ' L' + avn(cx + r * 0.8) + ' ' + avn(hy - r * 0.26) +
+      ' L' + avn(cx + r * 0.7) + ' ' + avn(hy - r * 0.14) +
+      ' L' + avn(cx + r * 0.56) + ' ' + avn(hy - r * 0.34) +
+      ' L' + avn(cx + r * 0.38) + ' ' + avn(hy - r * 0.3) +
+      ' C' + avn(cx + r * 0.24) + ' ' + avn(hy - r * 0.42) + ' ' + avn(cx + r * 0.1) + ' ' + avn(hy - r * 0.66) + ' ' + avn(cx + r * 0.05) + ' ' + avn(hy - r * 0.92) + ' Z" fill="' + col + '"/>';
+    // 가운데 가르마 — 살결이 드러나는 가는 틈
+    s += '<path d="M' + avn(cx + r * 0.01) + ' ' + avn(hy - r * 0.96) + ' L' + avn(cx + r * 0.02) + ' ' + avn(hy - r * 0.6) + '" stroke="' + AV_SKIN + '" stroke-width="' + avn(r * 0.05) + '" stroke-linecap="round"/>';
+    // 층이 진 머리카락 선
     s += '<path d="M' + avn(cx + r * 0.74) + ' ' + avn(hy - r * 0.78) + ' C' + avn(cx + r * 0.9) + ' ' + avn(hy - r * 0.5) + ' ' + avn(cx + r * 0.94) + ' ' + avn(hy - r * 0.28) + ' ' + avn(cx + r * 0.86) + ' ' + avn(hy - r * 0.12) +
-      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.075) + '" fill="none" stroke-linecap="round" opacity=".5"/>';
-    s += '<path d="M' + avn(cx + r * 0.1) + ' ' + avn(hy - r * 0.86) + ' C' + avn(cx + r * 0.02) + ' ' + avn(hy - r * 0.66) + ' ' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.52) + ' ' + avn(cx - r * 0.24) + ' ' + avn(hy - r * 0.4) +
+      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".5"/>';
+    s += '<path d="M' + avn(cx - r * 0.64) + ' ' + avn(hy - r * 0.8) + ' C' + avn(cx - r * 0.82) + ' ' + avn(hy - r * 0.58) + ' ' + avn(cx - r * 0.9) + ' ' + avn(hy - r * 0.44) + ' ' + avn(cx - r * 0.9) + ' ' + avn(hy - r * 0.3) +
       '" stroke="' + sh + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".45"/>';
-    s += '<path d="M' + avn(cx - r * 0.62) + ' ' + avn(hy - r * 0.8) + ' C' + avn(cx - r * 0.8) + ' ' + avn(hy - r * 0.6) + ' ' + avn(cx - r * 0.88) + ' ' + avn(hy - r * 0.48) + ' ' + avn(cx - r * 0.88) + ' ' + avn(hy - r * 0.36) +
-      '" stroke="' + sh + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".45"/>';
-    // 귀 앞으로 흘러내린 옆머리
+    // 귀 앞으로 흘러내린 옆머리 — 끝은 뾰족하게
     s += '<path d="M' + avn(cx - r * 0.98) + ' ' + avn(hy - r * 0.12) +
-      ' C' + avn(cx - r * 1.12) + ' ' + avn(hy + r * 0.2) + ' ' + avn(cx - r * 1.06) + ' ' + avn(hy + r * 0.44) + ' ' + avn(cx - r * 0.88) + ' ' + avn(hy + r * 0.66) +
-      ' L' + avn(cx - r * 0.74) + ' ' + avn(hy + r * 0.34) +
-      ' C' + avn(cx - r * 0.84) + ' ' + avn(hy + r * 0.14) + ' ' + avn(cx - r * 0.88) + ' ' + avn(hy + r * 0.02) + ' ' + avn(cx - r * 0.84) + ' ' + avn(hy - r * 0.12) + ' Z" fill="' + col + '"/>';
+      ' C' + avn(cx - r * 1.12) + ' ' + avn(hy + r * 0.24) + ' ' + avn(cx - r * 1.06) + ' ' + avn(hy + r * 0.5) + ' ' + avn(cx - r * 0.9) + ' ' + avn(hy + r * 0.76) +
+      ' L' + avn(cx - r * 0.78) + ' ' + avn(hy + r * 0.46) +
+      ' L' + avn(cx - r * 0.72) + ' ' + avn(hy + r * 0.4) +
+      ' C' + avn(cx - r * 0.8) + ' ' + avn(hy + r * 0.16) + ' ' + avn(cx - r * 0.86) + ' ' + avn(hy + r * 0.02) + ' ' + avn(cx - r * 0.84) + ' ' + avn(hy - r * 0.12) + ' Z" fill="' + col + '"/>';
     s += '<path d="M' + avn(cx + r * 0.98) + ' ' + avn(hy - r * 0.12) +
-      ' C' + avn(cx + r * 1.12) + ' ' + avn(hy + r * 0.2) + ' ' + avn(cx + r * 1.06) + ' ' + avn(hy + r * 0.44) + ' ' + avn(cx + r * 0.88) + ' ' + avn(hy + r * 0.66) +
-      ' L' + avn(cx + r * 0.74) + ' ' + avn(hy + r * 0.34) +
-      ' C' + avn(cx + r * 0.84) + ' ' + avn(hy + r * 0.14) + ' ' + avn(cx + r * 0.88) + ' ' + avn(hy + r * 0.02) + ' ' + avn(cx + r * 0.84) + ' ' + avn(hy - r * 0.12) + ' Z" fill="' + col + '"/>';
-    s += '<path d="M' + avn(cx - r * 0.5) + ' ' + avn(hy - r * 1.04) + ' C' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.9) + ' ' + avn(cx + r * 0.4) + ' ' + avn(hy - r * 0.92) + ' ' + avn(cx + r * 0.72) + ' ' + avn(hy - r * 0.72) +
-      '" stroke="' + hi + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".26"/>';
+      ' C' + avn(cx + r * 1.12) + ' ' + avn(hy + r * 0.24) + ' ' + avn(cx + r * 1.06) + ' ' + avn(hy + r * 0.5) + ' ' + avn(cx + r * 0.9) + ' ' + avn(hy + r * 0.76) +
+      ' L' + avn(cx + r * 0.78) + ' ' + avn(hy + r * 0.46) +
+      ' L' + avn(cx + r * 0.72) + ' ' + avn(hy + r * 0.4) +
+      ' C' + avn(cx + r * 0.8) + ' ' + avn(hy + r * 0.16) + ' ' + avn(cx + r * 0.86) + ' ' + avn(hy + r * 0.02) + ' ' + avn(cx + r * 0.84) + ' ' + avn(hy - r * 0.12) + ' Z" fill="' + col + '"/>';
+    s += '<path d="M' + avn(cx - r * 0.5) + ' ' + avn(hy - r * 1.02) + ' C' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.9) + ' ' + avn(cx + r * 0.4) + ' ' + avn(hy - r * 0.92) + ' ' + avn(cx + r * 0.72) + ' ' + avn(hy - r * 0.72) +
+      '" stroke="' + hi + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".26"/>'
   } else if (a.hair === 'bob') {
     s += avHairShell(cx, hy, r, col, 0.82, 0.54, 1.7);
     // 턱선에서 둥글게 끝나는 옆머리
@@ -722,6 +816,16 @@ function avHairFront(a, cx, hy, r, col) {
       '" stroke="' + hi + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".26"/>';
   } else if (a.hair === 'spiky') {
     s += avHairShell(cx, hy, r, col, 0.3, 0.84, 1.3);
+    // 정수리 스파이크 — 위로 뾰족하게 솟은 결
+    s += '<path d="M' + avn(cx - r * 0.86) + ' ' + avn(hy - r * 0.9) +
+      ' L' + avn(cx - r * 0.72) + ' ' + avn(hy - r * 1.5) +
+      ' L' + avn(cx - r * 0.46) + ' ' + avn(hy - r * 1.08) +
+      ' L' + avn(cx - r * 0.18) + ' ' + avn(hy - r * 1.62) +
+      ' L' + avn(cx + r * 0.06) + ' ' + avn(hy - r * 1.14) +
+      ' L' + avn(cx + r * 0.34) + ' ' + avn(hy - r * 1.56) +
+      ' L' + avn(cx + r * 0.56) + ' ' + avn(hy - r * 1.08) +
+      ' L' + avn(cx + r * 0.8) + ' ' + avn(hy - r * 1.44) +
+      ' L' + avn(cx + r * 0.86) + ' ' + avn(hy - r * 0.9) + ' Z" fill="' + col + '"/>';
     // 삐죽삐죽 앞머리 — 이마로 뾰족하게 내려오는 결
     s += '<path d="M' + avn(cx - r * 0.99) + ' ' + avn(hy - r * 0.86) +
       ' L' + avn(cx - r * 0.82) + ' ' + avn(hy - r * 0.38) +
@@ -760,7 +864,141 @@ function avHairFront(a, cx, hy, r, col) {
       '" fill="#f26d8d" transform="rotate(-24 ' + avn(cx + r * 0.62) + ' ' + avn(hy - r * 1.02) + ')"/>';
     s += '<path d="M' + avn(cx - r * 0.3) + ' ' + avn(hy - r * 1.02) + ' C' + avn(cx + r * 0.1) + ' ' + avn(hy - r * 0.94) + ' ' + avn(cx + r * 0.42) + ' ' + avn(hy - r * 0.92) + ' ' + avn(cx + r * 0.7) + ' ' + avn(hy - r * 0.7) +
       '" stroke="' + hi + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".26"/>';
-  } else {
+  } else if (a.hair === 'mohawk') {
+    /* 옆머리는 밀어낸 모히칸 — 가운데 볏만 시원하게 솟는다 */
+    // 민 머리 — 두피에 옅게 남은 잔털 틴트
+    s += '<g opacity=".18">' + avHairCap(cx, hy, r, col, 1.02, 0.66, 0.04) + '</g>';
+    // 귀 앞 잔털
+    s += '<path d="M' + avn(cx - r * 0.95) + ' ' + avn(hy + r * 0.06) + ' L' + avn(cx - r * 0.9) + ' ' + avn(hy + r * 0.24) + '" stroke="' + col + '" stroke-width="' + avn(r * 0.05) + '" stroke-linecap="round" opacity=".3"/>';
+    s += '<path d="M' + avn(cx + r * 0.95) + ' ' + avn(hy + r * 0.06) + ' L' + avn(cx + r * 0.9) + ' ' + avn(hy + r * 0.24) + '" stroke="' + col + '" stroke-width="' + avn(r * 0.05) + '" stroke-linecap="round" opacity=".3"/>';
+    // 볏 — 가운데만 다섯 갈래로 뾰족하게 솟은 모히칸
+    s += '<path d="M' + avn(cx - r * 0.42) + ' ' + avn(hy - r * 0.9) +
+      ' C' + avn(cx - r * 0.46) + ' ' + avn(hy - r * 1.06) + ' ' + avn(cx - r * 0.45) + ' ' + avn(hy - r * 1.2) + ' ' + avn(cx - r * 0.4) + ' ' + avn(hy - r * 1.3) +
+      ' L' + avn(cx - r * 0.3) + ' ' + avn(hy - r * 1.12) +
+      ' L' + avn(cx - r * 0.2) + ' ' + avn(hy - r * 1.42) +
+      ' L' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 1.16) +
+      ' L' + avn(cx + r * 0.02) + ' ' + avn(hy - r * 1.66) +
+      ' L' + avn(cx + r * 0.12) + ' ' + avn(hy - r * 1.18) +
+      ' L' + avn(cx + r * 0.24) + ' ' + avn(hy - r * 1.44) +
+      ' L' + avn(cx + r * 0.32) + ' ' + avn(hy - r * 1.12) +
+      ' L' + avn(cx + r * 0.42) + ' ' + avn(hy - r * 1.3) +
+      ' C' + avn(cx + r * 0.46) + ' ' + avn(hy - r * 1.18) + ' ' + avn(cx + r * 0.46) + ' ' + avn(hy - r * 1.02) + ' ' + avn(cx + r * 0.4) + ' ' + avn(hy - r * 0.9) + ' Z" fill="' + col + '"/>';
+    // 볏 밑동의 그늘 — 두피에 붙은 느낌
+    s += '<path d="M' + avn(cx - r * 0.36) + ' ' + avn(hy - r * 0.92) + ' Q' + avn(cx) + ' ' + avn(hy - r * 1.04) + ' ' + avn(cx + r * 0.36) + ' ' + avn(hy - r * 0.92) + '" stroke="' + sh + '" stroke-width="' + avn(r * 0.09) + '" fill="none" stroke-linecap="round" opacity=".45"/>';
+    // 볏의 광택
+    s += '<path d="M' + avn(cx - r * 0.16) + ' ' + avn(hy - r * 1.02) + ' L' + avn(cx - r * 0.06) + ' ' + avn(hy - r * 1.44) + '" stroke="' + hi + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".35"/>'
+  } else if (a.hair === 'dread') {
+    /* 굵은 드레드록 가닥이 정수리에서 이마와 볼 옆으로 늘어진다 */
+    // 가닥 사이로 살결이 보이도록, 매끈한 덩어리 없이 밧줄만 세운다
+    [[-1.04, 0.72, 0.2], [-0.74, -0.3, 0.2], [-0.42, -0.42, 0.21], [-0.08, -0.48, 0.21],
+      [0.26, -0.46, 0.21], [0.58, -0.38, 0.2], [0.88, 0.02, 0.2], [1.08, 0.62, 0.19]].forEach(function (p) {
+      const x0 = cx + p[0] * r * 0.6;
+      const x1 = cx + p[0] * r;
+      const y1 = hy + p[1] * r;
+      const top = hy - r * (Math.abs(p[0]) > 0.9 ? 0.86 : 1.02);
+      s += avHairStrand(x0, top, cx + p[0] * r * 0.92, hy - r * 0.5, x1, y1, r * p[2], col, 1);
+      s += avHairStrand(x0, top + r * 0.04, cx + p[0] * r * 0.92, hy - r * 0.5, x1, y1, r * p[2] * 0.24, hi, 0.28);
+      // 꼬인 결 — 가닥을 가로지르는 짧은 선
+      [0.36, 0.62, 0.84].forEach(function (t) {
+        const px = x0 + (x1 - x0) * t;
+        const py = top + (y1 - top) * t;
+        s += '<path d="M' + avn(px - r * 0.055) + ' ' + avn(py) + ' L' + avn(px + r * 0.055) + ' ' + avn(py + r * 0.05) +
+          '" stroke="' + sh + '" stroke-width="' + avn(r * 0.045) + '" stroke-linecap="round" opacity=".45"/>';
+      });
+    });
+    // 귀 앞으로 늘어진 긴 밧줄 가닥
+    [[-1.12, 1.14, 0.21], [1.12, 1.14, 0.21], [-1.26, 0.74, 0.18], [1.26, 0.74, 0.18]].forEach(function (p) {
+      const sd = p[0] < 0 ? -1 : 1;
+      s += avHairStrand(cx + sd * r * 0.84, hy - r * 0.24, cx + sd * r * 1.16, hy + r * 0.46, cx + p[0] * r, hy + p[1] * r, r * p[2], col, 1);
+      s += avHairStrand(cx + sd * r * 0.84, hy - r * 0.2, cx + sd * r * 1.16, hy + r * 0.46, cx + p[0] * r, hy + p[1] * r, r * p[2] * 0.24, hi, 0.24);
+    });
+    // 가닥을 묶은 구슬
+    s += '<ellipse cx="' + avn(cx - r * 1.06) + '" cy="' + avn(hy + r * 0.46) + '" rx="' + avn(r * 0.095) + '" ry="' + avn(r * 0.07) + '" fill="#e0a86a"/>';
+    s += '<ellipse cx="' + avn(cx + r * 1.06) + '" cy="' + avn(hy + r * 0.74) + '" rx="' + avn(r * 0.09) + '" ry="' + avn(r * 0.065) + '" fill="#78cfc4"/>'
+  } else if (a.hair === 'perm') {
+    /* 몽글몽글 풍성하게 부푼 볼륨 펌 */
+    s += avHairShell(cx, hy, r, col, 0.62, 0.5, 1.5);
+    // 머리보다 넓게 부풀어 오른 컬 덩어리
+    [[-1.0, -0.66, 0.27], [-1.14, -0.22, 0.26], [-1.08, 0.26, 0.24], [-0.84, -1.04, 0.27], [-0.42, -1.22, 0.27],
+      [0.04, -1.28, 0.27], [0.5, -1.2, 0.27], [0.86, -1.02, 0.27], [1.12, -0.2, 0.26], [1.06, 0.28, 0.24],
+      [-0.66, -0.42, 0.22], [0.66, -0.42, 0.22]].forEach(function (p) {
+      s += '<circle cx="' + avn(cx + p[0] * r) + '" cy="' + avn(hy + p[1] * r) + '" r="' + avn(r * p[2]) + '" fill="' + col + '"/>';
+    });
+    // 이마 위 둥근 앞머리 컬
+    [[-0.6, -0.5, 0.23], [-0.2, -0.56, 0.24], [0.22, -0.54, 0.24], [0.62, -0.48, 0.22]].forEach(function (p) {
+      s += '<circle cx="' + avn(cx + p[0] * r) + '" cy="' + avn(hy + p[1] * r) + '" r="' + avn(r * p[2]) + '" fill="' + col + '"/>';
+    });
+    // 컬의 결 — 몽글몽글한 소용돌이
+    s += '<path d="M' + avn(cx - r * 1.08) + ' ' + avn(hy - r * 0.44) + ' q' + avn(r * 0.16) + ' ' + avn(r * 0.16) + ' ' + avn(r * 0.02) + ' ' + avn(r * 0.32) + '" stroke="' + sh + '" stroke-width="' + avn(r * 0.055) + '" fill="none" stroke-linecap="round" opacity=".5"/>';
+    s += '<path d="M' + avn(cx + r * 1.06) + ' ' + avn(hy - r * 0.4) + ' q' + avn(-r * 0.16) + ' ' + avn(r * 0.16) + ' ' + avn(-r * 0.02) + ' ' + avn(r * 0.32) + '" stroke="' + sh + '" stroke-width="' + avn(r * 0.055) + '" fill="none" stroke-linecap="round" opacity=".5"/>';
+    s += '<path d="M' + avn(cx - r * 0.3) + ' ' + avn(hy - r * 1.12) + ' q' + avn(r * 0.2) + ' ' + avn(-r * 0.1) + ' ' + avn(r * 0.36) + ' ' + avn(r * 0.04) + '" stroke="' + hi + '" stroke-width="' + avn(r * 0.06) + '" fill="none" stroke-linecap="round" opacity=".3"/>';
+    s += '<path d="M' + avn(cx + r * 0.82) + ' ' + avn(hy - r * 0.86) + ' q' + avn(r * 0.16) + ' ' + avn(r * 0.14) + ' ' + avn(r * 0.1) + ' ' + avn(r * 0.3) + '" stroke="' + hi + '" stroke-width="' + avn(r * 0.06) + '" fill="none" stroke-linecap="round" opacity=".3"/>';
+  } else if (a.hair === 'twoblock') {
+    /* 투블럭 · 댄디 — 옆은 짧게, 윗머리는 반듯한 앞머리로 덮는다 */
+    s += avHairCap(cx, hy, r, col, 1.05, 0.5, 0.06);
+    // 윗머리 — 옆으로 살짝 넘치는 반듯한 덩어리
+    s += '<path d="M' + avn(cx - r * 1.05) + ' ' + avn(hy - r * 0.36) +
+      ' C' + avn(cx - r * 1.09) + ' ' + avn(hy - r * 0.96) + ' ' + avn(cx - r * 0.62) + ' ' + avn(hy - r * 1.24) + ' ' + avn(cx) + ' ' + avn(hy - r * 1.24) +
+      ' C' + avn(cx + r * 0.62) + ' ' + avn(hy - r * 1.24) + ' ' + avn(cx + r * 1.09) + ' ' + avn(hy - r * 0.96) + ' ' + avn(cx + r * 1.05) + ' ' + avn(hy - r * 0.36) +
+      ' L' + avn(cx + r * 0.9) + ' ' + avn(hy - r * 0.44) +
+      ' C' + avn(cx + r * 0.56) + ' ' + avn(hy - r * 0.52) + ' ' + avn(cx + r * 0.2) + ' ' + avn(hy - r * 0.48) + ' ' + avn(cx) + ' ' + avn(hy - r * 0.48) +
+      ' C' + avn(cx - r * 0.2) + ' ' + avn(hy - r * 0.48) + ' ' + avn(cx - r * 0.56) + ' ' + avn(hy - r * 0.52) + ' ' + avn(cx - r * 0.9) + ' ' + avn(hy - r * 0.44) + ' Z" fill="' + col + '"/>';
+    // 투블럭 경계 — 귀 위에서 반듯하게 끊기는 선
+    s += '<path d="M' + avn(cx - r * 1.04) + ' ' + avn(hy - r * 0.34) + ' L' + avn(cx - r * 0.84) + ' ' + avn(hy - r * 0.48) + '" stroke="' + avShade(col, 0.45) + '" stroke-width="' + avn(r * 0.06) + '" stroke-linecap="round" opacity=".55"/>';
+    s += '<path d="M' + avn(cx + r * 1.04) + ' ' + avn(hy - r * 0.34) + ' L' + avn(cx + r * 0.84) + ' ' + avn(hy - r * 0.48) + '" stroke="' + avShade(col, 0.45) + '" stroke-width="' + avn(r * 0.06) + '" stroke-linecap="round" opacity=".55"/>';
+    // 앞머리 결
+    s += '<path d="M' + avn(cx - r * 0.4) + ' ' + avn(hy - r * 1.14) + ' C' + avn(cx - r * 0.34) + ' ' + avn(hy - r * 0.92) + ' ' + avn(cx - r * 0.3) + ' ' + avn(hy - r * 0.7) + ' ' + avn(cx - r * 0.28) + ' ' + avn(hy - r * 0.5) + '" stroke="' + hi + '" stroke-width="' + avn(r * 0.055) + '" fill="none" stroke-linecap="round" opacity=".28"/>';
+    s += '<path d="M' + avn(cx + r * 0.4) + ' ' + avn(hy - r * 1.14) + ' C' + avn(cx + r * 0.44) + ' ' + avn(hy - r * 0.92) + ' ' + avn(cx + r * 0.46) + ' ' + avn(hy - r * 0.7) + ' ' + avn(cx + r * 0.46) + ' ' + avn(hy - r * 0.5) + '" stroke="' + hi + '" stroke-width="' + avn(r * 0.055) + '" fill="none" stroke-linecap="round" opacity=".28"/>'
+  } else if (a.hair === 'part') {
+    /* 6:4 가르마 — 한쪽으로 크게 넘긴 앞머리 */
+    s += avHairCap(cx, hy, r, col, 1.06, 0.52, 0.26);
+    // 큰 쪽 — 오른쪽으로 크게 넘긴 앞머리
+    s += '<path d="M' + avn(cx + r * 0.18) + ' ' + avn(hy - r * 1.16) +
+      ' C' + avn(cx + r * 0.5) + ' ' + avn(hy - r * 1.14) + ' ' + avn(cx + r * 0.94) + ' ' + avn(hy - r * 0.88) + ' ' + avn(cx + r * 0.98) + ' ' + avn(hy - r * 0.34) +
+      ' L' + avn(cx + r * 0.86) + ' ' + avn(hy - r * 0.36) +
+      ' C' + avn(cx + r * 0.82) + ' ' + avn(hy - r * 0.6) + ' ' + avn(cx + r * 0.56) + ' ' + avn(hy - r * 0.76) + ' ' + avn(cx + r * 0.34) + ' ' + avn(hy - r * 0.7) +
+      ' C' + avn(cx + r * 0.28) + ' ' + avn(hy - r * 0.9) + ' ' + avn(cx + r * 0.23) + ' ' + avn(hy - r * 1.04) + ' ' + avn(cx + r * 0.18) + ' ' + avn(hy - r * 1.16) + ' Z" fill="' + col + '"/>';
+    // 작은 쪽 — 가르마에서 왼쪽으로 흐르는 결
+    s += '<path d="M' + avn(cx + r * 0.14) + ' ' + avn(hy - r * 1.14) +
+      ' C' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.98) + ' ' + avn(cx - r * 0.58) + ' ' + avn(hy - r * 0.88) + ' ' + avn(cx - r * 0.86) + ' ' + avn(hy - r * 0.54) +
+      ' L' + avn(cx - r * 0.88) + ' ' + avn(hy - r * 0.3) +
+      ' C' + avn(cx - r * 0.86) + ' ' + avn(hy - r * 0.56) + ' ' + avn(cx - r * 0.48) + ' ' + avn(hy - r * 0.68) + ' ' + avn(cx - r * 0.1) + ' ' + avn(hy - r * 0.62) +
+      ' C' + avn(cx + r * 0.02) + ' ' + avn(hy - r * 0.86) + ' ' + avn(cx + r * 0.1) + ' ' + avn(hy - r * 1.02) + ' ' + avn(cx + r * 0.14) + ' ' + avn(hy - r * 1.14) + ' Z" fill="' + col + '"/>';
+    // 가르마 선 — 살결이 드러나는 가는 틈
+    s += '<path d="M' + avn(cx + r * 0.21) + ' ' + avn(hy - r * 1.12) + ' L' + avn(cx + r * 0.15) + ' ' + avn(hy - r * 0.58) + '" stroke="' + AV_SKIN + '" stroke-width="' + avn(r * 0.055) + '" stroke-linecap="round"/>';
+    // 넘긴 결의 광택과 그늘
+    s += '<path d="M' + avn(cx + r * 0.42) + ' ' + avn(hy - r * 0.98) + ' C' + avn(cx + r * 0.72) + ' ' + avn(hy - r * 0.82) + ' ' + avn(cx + r * 0.86) + ' ' + avn(hy - r * 0.62) + ' ' + avn(cx + r * 0.88) + ' ' + avn(hy - r * 0.44) + '" stroke="' + hi + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".3"/>';
+    s += '<path d="M' + avn(cx - r * 0.42) + ' ' + avn(hy - r * 0.92) + ' C' + avn(cx - r * 0.66) + ' ' + avn(hy - r * 0.8) + ' ' + avn(cx - r * 0.8) + ' ' + avn(hy - r * 0.58) + ' ' + avn(cx - r * 0.84) + ' ' + avn(hy - r * 0.34) + '" stroke="' + sh + '" stroke-width="' + avn(r * 0.055) + '" fill="none" stroke-linecap="round" opacity=".4"/>'
+  } else if (a.hair === 'pomade') {
+    /* 올백 · 포마드 — 이마를 드러내고 위로 매끈하게 넘긴 스타일 */
+    s += '<path d="M' + avn(cx - r * 1.02) + ' ' + avn(hy - r * 0.1) +
+      ' C' + avn(cx - r * 1.06) + ' ' + avn(hy - r * 0.86) + ' ' + avn(cx - r * 0.56) + ' ' + avn(hy - r * 1.34) + ' ' + avn(cx + r * 0.04) + ' ' + avn(hy - r * 1.34) +
+      ' C' + avn(cx + r * 0.6) + ' ' + avn(hy - r * 1.34) + ' ' + avn(cx + r * 1.06) + ' ' + avn(hy - r * 0.86) + ' ' + avn(cx + r * 1.02) + ' ' + avn(hy - r * 0.1) +
+      ' L' + avn(cx + r * 0.96) + ' ' + avn(hy - r * 0.14) +
+      ' C' + avn(cx + r * 0.9) + ' ' + avn(hy - r * 0.44) + ' ' + avn(cx + r * 0.86) + ' ' + avn(hy - r * 0.6) + ' ' + avn(cx + r * 0.66) + ' ' + avn(hy - r * 0.72) +
+      ' C' + avn(cx + r * 0.44) + ' ' + avn(hy - r * 0.84) + ' ' + avn(cx - r * 0.02) + ' ' + avn(hy - r * 0.86) + ' ' + avn(cx - r * 0.36) + ' ' + avn(hy - r * 0.78) +
+      ' C' + avn(cx - r * 0.68) + ' ' + avn(hy - r * 0.7) + ' ' + avn(cx - r * 0.86) + ' ' + avn(hy - r * 0.56) + ' ' + avn(cx - r * 0.94) + ' ' + avn(hy - r * 0.3) + ' Z" fill="' + col + '"/>';
+    // 빗질한 결 — 뒤통수로 흐르는 선
+    [[-0.68, -0.66, -0.5, -1.16], [-0.26, -0.78, -0.14, -1.24], [0.24, -0.78, 0.34, -1.22], [0.66, -0.66, 0.76, -1.12]].forEach(function (p) {
+      s += '<path d="M' + avn(cx + r * p[0]) + ' ' + avn(hy + r * p[1]) + ' Q' + avn(cx + r * (p[0] + p[2]) / 2) + ' ' + avn(hy + r * ((p[1] + p[3]) / 2) - r * 0.05) + ' ' + avn(cx + r * p[2]) + ' ' + avn(hy + r * p[3]) + '" stroke="' + sh + '" stroke-width="' + avn(r * 0.045) + '" fill="none" stroke-linecap="round" opacity=".4"/>';
+    });
+    // 광택 — 매끈하게 넘긴 윤
+    s += '<path d="M' + avn(cx - r * 0.62) + ' ' + avn(hy - r * 1.06) + ' C' + avn(cx - r * 0.24) + ' ' + avn(hy - r * 1.2) + ' ' + avn(cx + r * 0.26) + ' ' + avn(hy - r * 1.18) + ' ' + avn(cx + r * 0.6) + ' ' + avn(hy - r * 1.02) + '" stroke="' + hi + '" stroke-width="' + avn(r * 0.07) + '" fill="none" stroke-linecap="round" opacity=".26"/>';
+    // 헤어라인 결 — 이마 위로 넘긴 잔머리
+    s += '<path d="M' + avn(cx - r * 0.5) + ' ' + avn(hy - r * 0.78) + ' C' + avn(cx - r * 0.2) + ' ' + avn(hy - r * 0.84) + ' ' + avn(cx + r * 0.2) + ' ' + avn(hy - r * 0.84) + ' ' + avn(cx + r * 0.5) + ' ' + avn(hy - r * 0.76) + '" stroke="' + sh + '" stroke-width="' + avn(r * 0.05) + '" fill="none" stroke-linecap="round" opacity=".35"/>';
+  } else if (a.hair === 'buzz') {
+    /* 반삭 — 아주 짧고 깔끔하게 머리에 붙는 버즈컷 */
+    s += avHairCap(cx, hy, r, col, 1.05, 0.52, 0.02);
+    // 잔털 질감 — 짧은 머리의 결
+    [[-0.66, -0.72], [-0.36, -0.84], [-0.04, -0.9], [0.34, -0.86], [0.66, -0.7],
+      [-0.88, -0.34], [-0.9, -0.1], [0.88, -0.34], [0.9, -0.1], [-0.8, -0.52], [0.8, -0.52],
+      [-0.5, -0.5], [0.5, -0.5], [-0.18, -0.56], [0.2, -0.54], [-0.3, -0.24], [0.32, -0.26]].forEach(function (p) {
+      s += '<circle cx="' + avn(cx + p[0] * r) + '" cy="' + avn(hy + p[1] * r) + '" r="' + avn(r * 0.036) + '" fill="' + hi + '" opacity=".3"/>';
+    });
+    // 짧은 구레나룻
+    s += '<path d="M' + avn(cx - r * 0.96) + ' ' + avn(hy + r * 0.02) + ' L' + avn(cx - r * 0.9) + ' ' + avn(hy + r * 0.26) + '" stroke="' + col + '" stroke-width="' + avn(r * 0.1) + '" stroke-linecap="round"/>';
+    s += '<path d="M' + avn(cx + r * 0.96) + ' ' + avn(hy + r * 0.02) + ' L' + avn(cx + r * 0.9) + ' ' + avn(hy + r * 0.26) + '" stroke="' + col + '" stroke-width="' + avn(r * 0.1) + '" stroke-linecap="round"/>'
+  } else if (a.hair === 'wave') {
     // wave — 물결 펌
     s += avHairShell(cx, hy, r, col, 0.9, 0.56, 1.8);
     // 옆으로 흐르는 물결 결
@@ -944,8 +1182,8 @@ function avSVG(value, opt) {
   let vb = o.viewBox;
   if (!vb) {
     if (view === 'head') {
-      const side = avn(m.r * 2.5);
-      vb = avn(50 - side / 2) + ' ' + avn(m.cy - m.r * 1.42) + ' ' + side + ' ' + side;
+      const side = avn(m.r * 3.2);
+      vb = avn(50 - side / 2) + ' ' + avn(m.cy - m.r * 1.86) + ' ' + side + ' ' + side;
     } else {
       vb = AV_VIEWBOX;
     }
